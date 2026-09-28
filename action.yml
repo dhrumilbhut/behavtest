@@ -1,5 +1,5 @@
 name: Regrade LLM regression tests
-description: Run a Regrade suite against your LLM app, agent or RAG pipeline, compare with a committed baseline, and fail the pull request that made results worse.
+description: "Regression tests for LLM apps, agents and RAG pipelines: compare each pull request with a baseline, fail on real drops."
 author: Dhrumil Bhut
 branding:
   icon: check-circle

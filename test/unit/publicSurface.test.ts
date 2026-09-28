@@ -11,6 +11,16 @@ const read = (p: string) => readFileSync(join(root, p), "utf8");
  * that stays true: nothing private can be published, and nothing public depends on it.
  */
 describe("public surface", () => {
+  it("action.yml meets the GitHub Marketplace limits", () => {
+    const yml = read("action.yml");
+    const name = /^name: (.+)$/m.exec(yml)?.[1] ?? "";
+    const description = /^description: "(.+)"$/m.exec(yml)?.[1] ?? "";
+    expect(name.length).toBeGreaterThan(0);
+    expect(description.length, "description must be under 125 characters").toBeGreaterThan(0);
+    expect(description.length).toBeLessThan(125);
+    expect(yml).toMatch(/^branding:\r?\n {2}icon: [a-z-]+\r?\n {2}color: [a-z]+$/m);
+  });
+
   it("the published typings need no @types/node (no node: imports)", () => {
     const dts = read("dist/index.d.ts");
     expect(dts.match(/from ['"]node:[^'"]+['"]/g) ?? []).toEqual([]);
