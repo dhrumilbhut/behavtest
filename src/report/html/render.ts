@@ -66,15 +66,26 @@ function reportTrace(steps: readonly TraceStep[]): ReportStep[] {
   }));
 }
 
-/** One self-contained HTML file: no network access, no external assets. Opens from file://. */
-export function renderHtmlReport(opts: HtmlReportOptions): string {
+export interface ReportDataOptions {
+  report: RunReport;
+  comparison?: Comparison;
+  version: string;
+  generatedAt?: string;
+  maxTextChars?: number;
+  /** Include each attempt's trace (default true). The dashboard leaves them out and loads them per case. */
+  traces?: boolean;
+}
+
+/** The data the HTML report embeds (and the dashboard API serves): text clipped, traces simplified. */
+export function reportData(opts: ReportDataOptions) {
   const max = opts.maxTextChars ?? 20_000;
   const { report } = opts;
   const c = (s: string) => clip(s, max);
+  const withTraces = opts.traces ?? true;
 
   const attemptsTotal = report.summary.attempts;
   const scored = attemptsTotal.passed + attemptsTotal.failed; // errored attempts have no verdict
-  const data = {
+  return {
     version: opts.version,
     generatedAt: opts.generatedAt ?? new Date().toISOString(),
     run: report.run,
@@ -104,11 +115,19 @@ export function renderHtmlReport(opts: HtmlReportOptions): string {
           // a judge's verdict you can label for `regrade calibrate`
           judged: typeof s.metadata?.judge === "string" && !s.error,
         })),
-        trace: a.trace && a.trace.length > 0 ? reportTrace(a.trace) : null,
+        trace: withTraces && a.trace && a.trace.length > 0 ? reportTrace(a.trace) : null,
       })),
     })),
     comparison: opts.comparison ?? null,
   };
+}
+
+export type ReportData = ReturnType<typeof reportData>;
+
+/** One self-contained HTML file: no network access, no external assets. Opens from file://. */
+export function renderHtmlReport(opts: HtmlReportOptions): string {
+  const { report } = opts;
+  const data = reportData(opts);
 
   const s = report.summary.cases;
   const title = `Regrade · ${report.run.suiteName}`;

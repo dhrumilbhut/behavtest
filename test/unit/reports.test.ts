@@ -252,7 +252,7 @@ describe("runs and show output", () => {
       ["faithfulness", false],
       ["exactMatch", false],
     ]);
-    for (const piece of ["labelButtons(caseId, a.attempt, s.scorerName)", "regrade-labels:", "Export labels", "Click again to clear", "application/x-ndjson"]) {
+    for (const piece of ["s.judged && labels ? labelButtons(labels, caseId, a.attempt, s.scorerName)", "regrade-labels:", "Export labels", "Click again to clear", "application/x-ndjson"]) {
       expect(JS).toContain(piece);
     }
     expect(JS).not.toMatch(/confirm\(|alert\(|prompt\(/); // no blocking browser dialogs
