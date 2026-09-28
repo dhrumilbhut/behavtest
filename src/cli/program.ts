@@ -1,6 +1,7 @@
 import { Command, CommanderError, InvalidArgumentError } from "commander";
 import pc from "picocolors";
 import { ConfigError, errorMessage } from "../core/errors.js";
+import { calibrateCommand } from "./commands/calibrate.js";
 import { compareCommand } from "./commands/compare.js";
 import { exportCommand, importCommand } from "./commands/export.js";
 import { initCommand } from "./commands/init.js";
@@ -22,6 +23,12 @@ function intOption(name: string, min: number, max = Number.MAX_SAFE_INTEGER) {
 }
 
 const collect = (value: string, previous: string[] = []): string[] => [...previous, value];
+
+function kappaOption(value: string): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < -1 || n > 1) throw new InvalidArgumentError("--min-kappa must be a number between -1 and 1 (e.g. 0.6)");
+  return n;
+}
 
 function rateOption(value: string): number {
   const n = Number(value);
@@ -114,6 +121,19 @@ changed (or that only exist in one run, or errored) are listed but never counted
     )
     .action((runs: string[], opts) => {
       process.exitCode = compareCommand(runs, opts);
+    });
+
+  program
+    .command("calibrate")
+    .description("Measure how often an LLM judge agrees with your own pass/fail labels (agreement, Cohen's kappa, false pass and false fail rates)")
+    .requiredOption("--labels <file>", 'JSONL labels: one {run, case, attempt?, scorer?, label: "pass"|"fail"} per line (export them from the HTML report)')
+    .option("--min-kappa <k>", "exit 1 unless every judge has at least 30 labels and kappa at or above this (e.g. 0.6)", kappaOption)
+    .option("--db <path>", "results database", ".regrade/results.db")
+    .option("--json <file>", "write the calibration as JSON")
+    .option("--md <file>", "write a Markdown summary")
+    .option("--no-color", "disable coloured output")
+    .action((opts) => {
+      process.exitCode = calibrateCommand(opts);
     });
 
   program
