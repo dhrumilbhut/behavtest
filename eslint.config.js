@@ -11,4 +11,9 @@ export default tseslint.config(
       "@typescript-eslint/consistent-type-imports": "error",
     },
   },
+  {
+    // the GitHub Action script is plain JavaScript run by Node
+    files: ["action/**/*.mjs"],
+    languageOptions: { globals: { process: "readonly", fetch: "readonly" } },
+  },
 );

@@ -1,0 +1,69 @@
+name: Action self-test
+
+# Runs this repository's GitHub Action (uses: ./) on every OS: a healthy change must pass, and a
+# change that breaks the example bot must fail the job. The action uses this checkout's build.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  action:
+    name: action on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      - name: Healthy change passes
+        id: healthy
+        uses: ./
+        with:
+          suite: suite.mjs
+          working-directory: examples/github-action
+          repeat: 3
+          artifact-name: regrade-healthy-${{ matrix.os }}
+
+      - name: Breaking change fails
+        id: broken
+        continue-on-error: true
+        uses: ./
+        env:
+          BOT_QUALITY: broken
+        with:
+          suite: suite.mjs
+          working-directory: examples/github-action
+          repeat: 3
+          artifact-name: regrade-broken-${{ matrix.os }}
+
+      - name: Check the outcomes
+        shell: bash
+        env:
+          HEALTHY: ${{ steps.healthy.outputs.result }}
+          HEALTHY_REGRESSED: ${{ steps.healthy.outputs.regressed }}
+          BROKEN_OUTCOME: ${{ steps.broken.outcome }}
+          BROKEN: ${{ steps.broken.outputs.result }}
+          BROKEN_REGRESSED: ${{ steps.broken.outputs.regressed }}
+          REPORT: ${{ steps.broken.outputs.report-path }}
+        run: |
+          echo "healthy=$HEALTHY ($HEALTHY_REGRESSED regressed); broken=$BROKEN, step $BROKEN_OUTCOME ($BROKEN_REGRESSED regressed)"
+          test "$HEALTHY" = pass
+          test "$HEALTHY_REGRESSED" = 0
+          test "$BROKEN_OUTCOME" = failure
+          test "$BROKEN" = fail
+          test "$BROKEN_REGRESSED" = 4
+          test -f "$REPORT"

@@ -11,7 +11,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: read
+  contents: write # moves the v0 tag that `uses: dhrumilbhut/regrade@v0` follows
   id-token: write # required for trusted publishing / provenance
 
 jobs:
@@ -32,3 +32,8 @@ jobs:
       - name: Tag matches package.json version
         run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
       - run: npm publish --access public
+      - name: Move the v0 major tag to this release (the GitHub Action)
+        if: startsWith(github.ref_name, 'v0.')
+        run: |
+          git tag -f v0 "$GITHUB_SHA"
+          git push -f origin v0

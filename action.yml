@@ -1,0 +1,107 @@
+name: Regrade LLM regression tests
+description: Run a Regrade suite against your LLM app, agent or RAG pipeline, compare with a committed baseline, and fail the pull request that made results worse.
+author: Dhrumil Bhut
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  suite:
+    description: Path to the suite file (.json, or a code suite .ts .mts .js .mjs), relative to working-directory.
+    required: true
+  baseline:
+    description: Path to the committed baseline run file. When it does not exist the run still happens, and the summary explains how to create one.
+    default: regrade.baseline.json
+  gate:
+    description: >-
+      When to fail the job. regression (default): any case regressed or errored, or the overall pass rate dropped
+      significantly, compared with the baseline. significant: only statistically significant regressions.
+      cases: any case failed, was flaky or errored (or --min-pass-rate was not met). none: never (configuration errors still fail).
+    default: regression
+  repeat:
+    description: Attempts per case (overrides the suite). Several attempts are needed for a single case's drop to be significant.
+    default: ""
+  min-pass-rate:
+    description: With gate cases, pass if at least this fraction of attempts pass (0-1).
+    default: ""
+  judge:
+    description: LLM judge model, e.g. openai:gpt-5.4-nano (overrides the suite).
+    default: ""
+  args:
+    description: Extra arguments for regrade run, e.g. "--tag smoke --concurrency 8".
+    default: ""
+  working-directory:
+    description: Directory to run in.
+    default: .
+  report:
+    description: Upload the HTML report, the run file and the Markdown summaries as a workflow artifact.
+    default: "true"
+  artifact-name:
+    description: Name of the uploaded artifact (default regrade-<job>-<os>).
+    default: ""
+  comment:
+    description: >-
+      Post the result as a pull request comment, updated on each push. Needs `permissions: pull-requests: write`
+      (and does nothing outside pull_request events).
+    default: "false"
+  github-token:
+    description: Token for the pull request comment.
+    default: ${{ github.token }}
+  node-version:
+    description: Node.js version to set up (Regrade needs 24 or newer).
+    default: "24"
+
+outputs:
+  result:
+    description: pass or fail (the gate's decision), or error (configuration error or interrupted run).
+    value: ${{ steps.regrade.outputs.result }}
+  regressed:
+    description: Number of regressed cases compared with the baseline (empty without a baseline).
+    value: ${{ steps.regrade.outputs.regressed }}
+  run-id:
+    description: The id of the run that was made.
+    value: ${{ steps.regrade.outputs.run-id }}
+  report-path:
+    description: Path of the HTML report on the runner.
+    value: ${{ steps.regrade.outputs.report-path }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - id: regrade
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        RG_SUITE: ${{ inputs.suite }}
+        RG_BASELINE: ${{ inputs.baseline }}
+        RG_GATE: ${{ inputs.gate }}
+        RG_REPEAT: ${{ inputs.repeat }}
+        RG_MIN_PASS_RATE: ${{ inputs.min-pass-rate }}
+        RG_JUDGE: ${{ inputs.judge }}
+        RG_ARGS: ${{ inputs.args }}
+        RG_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        RG_COMMENT: ${{ inputs.comment }}
+        RG_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/action/main.mjs"
+
+    - if: ${{ always() && inputs.report == 'true' && steps.regrade.outputs.artifact-dir != '' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ steps.regrade.outputs.artifact-name }}
+        path: ${{ steps.regrade.outputs.artifact-dir }}
+        overwrite: true
+        if-no-files-found: ignore
+
+    - if: ${{ always() && steps.regrade.outputs.exit-code != '' && steps.regrade.outputs.exit-code != '0' }}
+      shell: bash
+      env:
+        # passed through the environment, never pasted into the script
+        RG_MESSAGE: ${{ steps.regrade.outputs.message }}
+        RG_EXIT: ${{ steps.regrade.outputs.exit-code }}
+      run: |
+        echo "::error title=Regrade::$RG_MESSAGE"
+        exit "$RG_EXIT"
