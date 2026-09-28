@@ -11,6 +11,12 @@ const read = (p: string) => readFileSync(join(root, p), "utf8");
  * that stays true: nothing private can be published, and nothing public depends on it.
  */
 describe("public surface", () => {
+  it("the published typings need no @types/node (no node: imports)", () => {
+    const dts = read("dist/index.d.ts");
+    expect(dts.match(/from ['"]node:[^'"]+['"]/g) ?? []).toEqual([]);
+    expect(dts).not.toMatch(/\bNodeJS\./);
+  });
+
   it("git-ignores the private docs folder", () => {
     // No trailing slash: docs/ may be a real folder, a Windows junction or a macOS symlink into a separate
     // private repo, and only a slash-less pattern matches all three (see .gitignore).

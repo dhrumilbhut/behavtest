@@ -152,6 +152,8 @@ const DOC_SLUGS: Record<string, string> = {
   "Judge calibration: does the judge agree with you?": "calibration",
   "Non-determinism: repeat your cases": "repeats",
   "Compare runs: what regressed, and is it real?": "compare",
+  "Matrix runs: compare models and prompts side by side": "matrix",
+  "GitHub Action": "github-action",
   "Baselines and CI: fail the pull request that made things worse": "ci-baselines",
   Reports: "reports",
   "Dashboard: browse, compare and label runs": "dashboard",
@@ -542,7 +544,7 @@ ${install("npx regrade init --ts && npx regrade run regrade/suite.mts")}
 ${feature("run", "Test the real pipeline", "An HTTP endpoint in any language, an OpenAI-compatible or Anthropic model, or a function in your own process.", "docs/adapters/")}
 ${feature("check", "Score every answer", "Exact match, a prompt-injection-hardened LLM judge, latency and cost limits, or your own scorers in TypeScript.", "docs/scorers/")}
 ${feature("stats", "Tell regressions from noise", "Repeat each case, then compare runs with Wilson intervals, Fisher's exact test and a case-stratified permutation test.", "docs/compare/")}
-${feature("pr", "Fail the pull request", "Commit a compact baseline; CI compares every pull request against it and exits non-zero when quality drops.", "docs/ci-baselines/")}
+${feature("pr", "Fail the pull request", "A GitHub Action compares every pull request with a committed baseline and fails the check when quality drops.", "docs/github-action/")}
 ${feature("trace", "Check what the agent did", "Store each run's tool calls and LLM steps, and test that the agent called the right tool without looping.", "docs/traces/")}
 ${feature("local", "Zero infrastructure", "One CLI, one local SQLite file, and a local dashboard to browse it. No hosted service, no account, no telemetry, no default provider. MIT licensed.", "docs/security/")}
 </div>

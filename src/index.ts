@@ -56,7 +56,7 @@ export { stratifiedPermutationTest, stratifiedBootstrapInterval } from "./stats/
 export type { PairedCase } from "./stats/bootstrap.js";
 export { renderHtmlReport, reportData } from "./report/html/render.js";
 export type { ReportData } from "./report/html/render.js";
-export { startDashboard, dashboardHandler } from "./serve/server.js";
+export { startDashboard } from "./serve/server.js";
 export type { DashboardServer, DashboardServerOptions } from "./serve/server.js";
 export { handleApi, ApiError, API_VERSION } from "./serve/api.js";
 export { renderRunMarkdown, renderCompareMarkdown } from "./report/markdown.js";

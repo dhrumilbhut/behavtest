@@ -1,0 +1,33 @@
+{
+  "$schema": "../../schema/suite.schema.json",
+  "name": "model-shootout",
+  "description": "Twelve short questions with one right answer, asked of several models. Run: regrade run examples/matrix/suite.json (needs OPENAI_API_KEY), then regrade matrix.",
+  "pipeline": {
+    "adapter": "openai",
+    "config": {
+      "model": "gpt-4.1-nano",
+      "system": "Answer with only the final answer: no explanation, no units, no trailing punctuation."
+    }
+  },
+  "variants": [
+    { "name": "gpt-4.1-nano" },
+    { "name": "gpt-4o-mini", "pipeline": { "config": { "model": "gpt-4o-mini" } } },
+    { "name": "gpt-5.4-nano", "pipeline": { "config": { "model": "gpt-5.4-nano" } } },
+    { "name": "gpt-6-luna", "pipeline": { "config": { "model": "gpt-6-luna" } } }
+  ],
+  "defaults": { "repeat": 3, "concurrency": 6 },
+  "cases": [
+    { "id": "bat-and-ball", "input": "A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. How much does the ball cost, in cents?", "expected": "5", "scorers": ["exactMatch"] },
+    { "id": "letters-strawberry", "input": "How many times does the letter r appear in the word strawberry?", "expected": "3", "scorers": ["exactMatch"] },
+    { "id": "clock-arithmetic", "input": "It is 23:00. What time is it 150 minutes later? Answer as HH:MM in 24-hour time.", "expected": "01:30", "scorers": ["exactMatch"] },
+    { "id": "multiplication", "input": "What is 17 × 24?", "expected": "408", "scorers": ["exactMatch"] },
+    { "id": "all-but-nine", "input": "A farmer has 17 sheep. All but 9 run away. How many sheep are left?", "expected": "9", "scorers": ["exactMatch"] },
+    { "id": "decimal-compare", "input": "Which is larger, 9.11 or 9.9? Answer with the number.", "expected": "9.9", "scorers": ["exactMatch"] },
+    { "id": "leap-february", "input": "How many days are in February 2028?", "expected": "29", "scorers": ["exactMatch"] },
+    { "id": "next-prime", "input": "What is the smallest prime number greater than 89?", "expected": "97", "scorers": ["exactMatch"] },
+    { "id": "widgets", "input": "If 5 machines make 5 widgets in 5 minutes, how many minutes do 100 machines need to make 100 widgets?", "expected": "5", "scorers": ["exactMatch"] },
+    { "id": "reverse-word", "input": "Write the word 'stressed' backwards.", "expected": "desserts", "scorers": ["exactMatch"] },
+    { "id": "count-letters", "input": "How many letters are in the word Mississippi?", "expected": "11", "scorers": ["exactMatch"] },
+    { "id": "weekday-2000", "input": "What day of the week was 1 January 2000?", "expected": "Saturday", "scorers": ["exactMatch"] }
+  ]
+}

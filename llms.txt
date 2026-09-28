@@ -11,8 +11,9 @@ Key facts:
 - Built-in scorers: `exactMatch`, `llmJudge`, `latencyCost`, `toolCalled`, `maxSteps`, and for RAG `retrieval` (deterministic: hit/recall/precision/MRR against a case's `expectedDocs`), `faithfulness` and `contextRelevance` (LLM judge).
 - Judge calibration: `regrade calibrate` measures how often the LLM judge agrees with human pass/fail labels (Cohen's kappa, false-pass rate); labels are saved from the dashboard, or read from a JSONL file with `--labels` (exported from the HTML report).
 - Dashboard: `regrade serve` opens a local web UI on the results database (127.0.0.1:4800): runs, pass-rate trends per suite, comparing any two runs, labelling judge verdicts, and judge calibration.
-- Commands: `run`, `compare`, `runs`, `show`, `report` (single-file HTML), `serve` (local dashboard), `calibrate`, `export` / `import` (run files), `init`, `schema`.
-- CI: commit a compact baseline (`regrade run suite.json --export regrade.baseline.json --compact`) and run `regrade compare regrade.baseline.json --fail-on-regression` in the pipeline.
+- Matrix runs: `variants` on a suite (each changes the pipeline config, e.g. the model or prompt) make one run per variant; `regrade matrix` compares them side by side with Wilson intervals, cost, latency and a permutation test against a reference.
+- Commands: `run`, `compare`, `matrix`, `runs`, `show`, `report` (single-file HTML), `serve` (local dashboard), `calibrate`, `export` / `import` (run files), `init`, `schema`.
+- CI: commit a compact baseline (`regrade run suite.json --export regrade.baseline.json --compact`). On GitHub use the Action `dhrumilbhut/regrade@v0` (inputs `suite`, `repeat`, `gate`, `comment`); elsewhere run `regrade compare regrade.baseline.json --fail-on-regression`.
 - Exit codes: 0 passed, 1 failed/flaky/errored or gate failed, 2 configuration error, 130 interrupted.
 - No telemetry, no hosted service, no default provider. Secrets are referenced as `${ENV_VAR}` and never stored.
 
@@ -21,7 +22,9 @@ Key facts:
 - [README (full documentation)](https://github.com/dhrumilbhut/regrade#readme): quickstart, how-to guides, concepts, reference, FAQ
 - [Full documentation as plain text](https://dhrumilbhut.github.io/regrade/llms-full.txt): the README in one file
 - [Quickstart](https://github.com/dhrumilbhut/regrade#quickstart): no-key start, testing an OpenAI or Anthropic prompt, testing your own HTTP service
-- [Baselines and CI](https://github.com/dhrumilbhut/regrade#baselines-and-ci-fail-the-pull-request-that-made-things-worse): GitHub Actions workflows that fail a pull request when quality drops
+- [GitHub Action](https://github.com/dhrumilbhut/regrade#github-action): block the pull request that makes results worse (inputs, outputs, baseline refresh)
+- [Matrix runs](https://github.com/dhrumilbhut/regrade#matrix-runs-compare-models-and-prompts-side-by-side): compare models and prompt versions side by side
+- [Baselines and CI](https://github.com/dhrumilbhut/regrade#baselines-and-ci-fail-the-pull-request-that-made-things-worse): the same with CLI steps, for any CI system
 - [Traces](https://github.com/dhrumilbhut/regrade#traces-check-what-the-agent-did-not-just-what-it-said): reporting an agent's steps and checking its tool calls
 - [The LLM judge](https://github.com/dhrumilbhut/regrade#the-llm-judge): prompt-injection hardening, structured verdicts, choosing a judge model
 - [RAG](https://github.com/dhrumilbhut/regrade#rag-test-retrieval-and-grounded-answers): retrieval, faithfulness and context-relevance scorers
@@ -36,6 +39,8 @@ Key facts:
 - [Live sample report](https://dhrumilbhut.github.io/regrade/sample/): a healthy pipeline compared with a degraded one
 - [Example suite and mock pipeline](https://github.com/dhrumilbhut/regrade/tree/main/examples/qa-http)
 - [Example RAG pipeline and suite](https://github.com/dhrumilbhut/regrade/tree/main/examples/rag)
+- [Demo repository](https://github.com/dhrumilbhut/regrade-demo/pulls): the GitHub Action passing one pull request and blocking another
+- [Example matrix suite](https://github.com/dhrumilbhut/regrade/tree/main/examples/matrix): four OpenAI models side by side
 
 ## Optional
 

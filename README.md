@@ -14,6 +14,8 @@
 | **Scores with** | `exactMatch`, `llmJudge` (LLM-as-a-judge), `latencyCost`, `toolCalled`, `maxSteps`, RAG scorers (`retrieval`, `faithfulness`, `contextRelevance`), or your own functions |
 | **Checks the judge** | `regrade calibrate` measures how often the LLM judge agrees with your own labels (Cohen's kappa) |
 | **Browse results** | `regrade serve`: a local dashboard with pass-rate trends, run comparison, labelling and judge calibration |
+| **Runs in CI** | A GitHub Action (`dhrumilbhut/regrade@v0`) that compares each pull request with a committed baseline, writes the job summary and fails the check on a regression; or the CLI in any CI |
+| **Compares models** | Matrix runs: the same cases through several models or prompt versions, side by side with confidence intervals |
 | **Compares runs with** | Repeated attempts, Wilson intervals, Fisher's exact test and a paired permutation test |
 | **Needs** | Node.js 24 or newer. No hosted service, no account, no telemetry: results go to one local SQLite file |
 | **License** | MIT |
@@ -25,7 +27,7 @@ npx regrade init --ts && npx regrade run regrade/suite.mts   # a working suite, 
 ## Contents
 
 - [When to use Regrade](#when-to-use-regrade) · [Quickstart](#quickstart) · [How-to guides](#how-to-guides) · [Concepts](#concepts)
-- Reference: [suite format](#suite-format) · [adapters](#adapters-what-to-test) · [scorers](#scorers) · [LLM judge](#the-llm-judge) · [code suites](#code-suites-typescript-or-javascript) · [traces](#traces-check-what-the-agent-did-not-just-what-it-said) · [RAG](#rag-test-retrieval-and-grounded-answers) · [judge calibration](#judge-calibration-does-the-judge-agree-with-you) · [repeats](#non-determinism-repeat-your-cases) · [compare](#compare-runs-what-regressed-and-is-it-real) · [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse) · [reports](#reports) · [dashboard](#dashboard-browse-compare-and-label-runs) · [exit codes and storage](#exit-codes-and-storage) · [cost](#cost) · [CLI](#cli-reference) · [library](#library-api-and-custom-scorers)
+- Reference: [suite format](#suite-format) · [adapters](#adapters-what-to-test) · [scorers](#scorers) · [LLM judge](#the-llm-judge) · [code suites](#code-suites-typescript-or-javascript) · [traces](#traces-check-what-the-agent-did-not-just-what-it-said) · [RAG](#rag-test-retrieval-and-grounded-answers) · [judge calibration](#judge-calibration-does-the-judge-agree-with-you) · [repeats](#non-determinism-repeat-your-cases) · [compare](#compare-runs-what-regressed-and-is-it-real) · [matrix runs](#matrix-runs-compare-models-and-prompts-side-by-side) · [GitHub Action](#github-action) · [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse) · [reports](#reports) · [dashboard](#dashboard-browse-compare-and-label-runs) · [exit codes and storage](#exit-codes-and-storage) · [cost](#cost) · [CLI](#cli-reference) · [library](#library-api-and-custom-scorers)
 - [FAQ](#faq) · [For AI coding assistants](#for-ai-coding-assistants) · [Security and privacy](#security-and-privacy) · [Contributing](#contributing)
 
 ## When to use Regrade
@@ -63,7 +65,7 @@ npx regrade run regrade/suite.json
 ```
 
 ```
-regrade 0.6.0 · my-first-suite · http → localhost:4000/pipeline
+regrade 0.7.0 · my-first-suite · http → localhost:4000/pipeline
   2 cases · concurrency 4
 
   ✓ capital-of-france     177 ms  exactMatch ✓  latencyCost ✓
@@ -133,14 +135,41 @@ regrade compare --fail-on-regression
 
 ### Fail a GitHub pull request when LLM quality drops
 
-Commit a compact baseline once, then compare every pull request against it:
+Commit a compact baseline once:
 
 ```bash
 regrade run regrade/suite.json --repeat 3 --export regrade.baseline.json --compact
 git add regrade.baseline.json && git commit -m "Add Regrade baseline"
 ```
 
-In CI: `regrade run … || test $? -eq 1`, then `regrade compare regrade.baseline.json --fail-on-regression --md regrade.md`. Complete workflow files are in [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse).
+Then add the [GitHub Action](#github-action) to a workflow that runs on pull requests:
+
+```yaml
+      - uses: dhrumilbhut/regrade@v0
+        with:
+          suite: regrade/suite.json
+          repeat: 3
+```
+
+It compares every pull request with the baseline, writes the result to the job summary and fails the check when a case regresses. [See it block a pull request](https://github.com/dhrumilbhut/regrade-demo/pulls). Other CI systems: [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse).
+
+### Compare models or prompt versions side by side
+
+Add `variants` to the suite, each changing the pipeline's config, and run it once:
+
+```json
+"variants": [
+  { "name": "gpt-4.1-nano" },
+  { "name": "gpt-5.4-nano", "pipeline": { "config": { "model": "gpt-5.4-nano" } } }
+]
+```
+
+```bash
+regrade run suite.json --repeat 3    # one run per variant
+regrade matrix --out matrix.html     # side by side: pass rate with intervals, cost, latency, each case
+```
+
+See [matrix runs](#matrix-runs-compare-models-and-prompts-side-by-side).
 
 ### Test a Python, LangChain or other HTTP service
 
@@ -245,6 +274,7 @@ Add `"latencyCost"` with `maxLatencyMs` and/or `maxCostUsd`. Cost comes from tok
 | **Trace** | The steps an attempt took (LLM calls, tool calls, retrievals), reported by the pipeline |
 | **Expected docs** | The ids of the documents a RAG case should retrieve (`expectedDocs`), for the `retrieval` scorer |
 | **Label** | Your own pass/fail on a judged answer, used by `regrade calibrate` to measure the judge |
+| **Variant** / **matrix** | A variant changes the pipeline's config (a model, a prompt); a matrix is one run per variant of the same cases, compared side by side |
 | **Modified** | A case whose definition, scorer code or judge model changed between two runs; listed, never counted as a regression |
 
 ## Suite format
@@ -298,6 +328,7 @@ A suite is a JSON file. Add `"$schema"` for editor autocomplete and validation (
 | `cases[].repeat` / `timeoutMs` | Per-case overrides. CLI flags beat case values, which beat `defaults`. |
 | `${VAR}` / `${VAR:-default}` | Environment placeholders, allowed in any string of `pipeline.config`. **Secrets belong here, never in the file.** A missing variable stops the run before anything is sent. |
 | `pricing` | Optional extra/override model prices (see [cost](#cost)). |
+| `variants` | Optional: run the suite once per variant (see [matrix runs](#matrix-runs-compare-models-and-prompts-side-by-side)). Each is `{ name, description?, pipeline?: { adapter?, config? } }`. |
 
 Unknown keys are rejected, so typos like `scorer` (instead of `scorers`) fail loudly, with the JSON path.
 
@@ -571,6 +602,128 @@ regrade compare · support-bot
 
 `--fail-on-regression` fails on any regressed case (significant or not, because single-attempt suites can't do better), on any case that errored in the head run, and on a significant overall drop. `--significant-only` ignores regressions that aren't statistically significant. The tests check the statistics against textbook reference values and, by simulation, that the overall test rejects under 9% of the time when nothing changed and over 95% of the time for a real drop.
 
+## Matrix runs: compare models and prompts side by side
+
+A matrix runs the same cases through several pipeline setups, a model, a prompt version or a temperature, and compares them with the same statistics as `compare`. Add `variants` to a suite:
+
+```json
+{
+  "name": "model-shootout",
+  "pipeline": { "adapter": "openai", "config": { "model": "gpt-4.1-nano", "system": "Answer with only the final answer." } },
+  "variants": [
+    { "name": "gpt-4.1-nano" },
+    { "name": "gpt-4o-mini", "pipeline": { "config": { "model": "gpt-4o-mini" } } },
+    { "name": "gpt-5.4-nano", "pipeline": { "config": { "model": "gpt-5.4-nano" } } },
+    { "name": "gpt-6-luna", "pipeline": { "config": { "model": "gpt-6-luna" } } }
+  ],
+  "defaults": { "repeat": 3 },
+  "cases": [ ... ]
+}
+```
+
+`regrade run` prints how many calls the matrix will make, then runs each variant as an ordinary run (labelled with the variant) and prints the comparison. This is [`examples/matrix/suite.json`](examples/matrix/suite.json), run for real (12 questions × 3 attempts × 4 models, about $0.002):
+
+```
+regrade matrix · model-shootout · 4 variants · matrix b4812ebe
+
+  variant         pipeline             attempt pass rate [95% CI]  cases passed  flaky  p95 latency     cost  vs gpt-4.1-nano
+  gpt-4.1-nano *  openai:gpt-4.1-nano  92% [78%–97%]                      11/12      0     2,382 ms  $0.0002  reference
+  gpt-4o-mini     openai:gpt-4o-mini   100% [90%–100%]                    12/12      0     2,877 ms  $0.0003  +8.3 pts [+8.3 pts, +8.3 pts] p=0.101 not significant
+  gpt-5.4-nano    openai:gpt-5.4-nano  89% [75%–96%]                      10/12      2     2,697 ms  $0.0005  -2.8 pts [-8.3 pts, +2.8 pts] p=1.000 not significant
+  gpt-6-luna      openai:gpt-6-luna    100% [90%–100%]                    12/12      0     4,500 ms  $0.0008  +8.3 pts [+8.3 pts, +8.3 pts] p=0.106 not significant
+
+  case                gpt-4.1-nano  gpt-4o-mini  gpt-5.4-nano  gpt-6-luna
+  letters-strawberry         0/3 ✗        3/3 ✓         3/3 ✓       3/3 ✓
+  bat-and-ball               3/3 ✓        3/3 ✓         1/3 ~       3/3 ✓
+  decimal-compare            3/3 ✓        3/3 ✓         1/3 ~       3/3 ✓
+  ...
+```
+
+Twelve questions cannot tell these models apart with confidence: every difference is "not significant". That is the point of the intervals. Add cases and attempts until the differences you care about are significant, or until you are confident they are small.
+
+- **How variants combine:** a variant's `config` is merged over `pipeline.config` (nested objects merged, other values replaced); a variant with a different `adapter` replaces the config instead. In a code suite a variant's `pipeline` can be a function.
+- **Same cases, same judge:** variants cannot change cases or the judge, so every variant is judged the same way and cases compare one to one. Case hashes do not include the pipeline, so nothing shows as `modified`.
+- **`regrade matrix [id]`** shows the latest matrix (or one by id prefix; `--list` lists them). `--reference <variant>` picks what the others are compared with (default: the first). `--md`, `--json`, and `--out report.html` (a single-file report with a dot-and-interval chart and the case grid). The dashboard has a **Matrix** page.
+- **`--variant <name>`** (repeatable) runs only some variants. `regrade compare` and the dashboard's trends compare a run with earlier runs of the same variant.
+- **Cost:** a matrix multiplies calls (variants × cases × attempts); the count is printed before anything runs. Variants run one after another.
+
+## GitHub Action
+
+Block the pull request that makes your LLM app worse. The Action installs Regrade, runs your suite, compares it with a committed baseline, writes the comparison to the job summary, uploads the HTML report, and fails the check according to `gate`. [See it on a demo repository](https://github.com/dhrumilbhut/regrade-demo/pulls): one pull request passes, the other is blocked with the two cases it broke.
+
+```yaml
+name: Regrade
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write   # only for comment: true
+
+jobs:
+  regrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Start your pipeline here if the suite calls it over HTTP.
+      - uses: dhrumilbhut/regrade@v0
+        with:
+          suite: regrade/suite.json
+          repeat: 3
+          comment: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
+Create the baseline once from a run you accept, and commit it: `npx regrade run regrade/suite.json --repeat 3 --export regrade.baseline.json --compact`. Without a baseline the Action still runs and its summary says how to make one.
+
+| Input | Default | Meaning |
+|---|---|---|
+| `suite` | (required) | Suite file, relative to `working-directory` |
+| `baseline` | `regrade.baseline.json` | The committed baseline run file |
+| `gate` | `regression` | `regression`: fail if any case regressed or errored, or the pass rate dropped significantly. `significant`: only significant regressions. `cases`: fail if any case failed, was flaky or errored in this run (with `min-pass-rate`, if too few attempts passed). `none`: never fail (configuration errors still do) |
+| `repeat` | suite's | Attempts per case; use the same number as the baseline |
+| `min-pass-rate` | | With `gate: cases`, the fraction of attempts that must pass |
+| `judge` | suite's | LLM judge model, e.g. `openai:gpt-5.4-nano` |
+| `args` | | Extra `regrade run` arguments, e.g. `--tag smoke` |
+| `comment` | `false` | Keep one pull request comment up to date with the result (needs `pull-requests: write`; skipped outside pull requests, a warning if refused) |
+| `report` | `true` | Upload the HTML report, run file and summaries as an artifact |
+| `working-directory`, `artifact-name`, `node-version`, `github-token` | | As named |
+
+Outputs: `result` (`pass`, `fail` or `error`), `regressed` (number of regressed cases), `run-id`, `report-path`.
+
+The Action runs the Regrade release that matches its tag (`@v0` follows the latest 0.x release; pin `@v0.7.0` for a fixed version). API keys come from your workflow's `env`, as for any step.
+
+**Updating the baseline** is a reviewed change. A manual workflow that opens a pull request with a fresh baseline:
+
+```yaml
+name: Update Regrade baseline
+on: workflow_dispatch
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npx regrade@0.7 run regrade/suite.json --repeat 3 --export regrade.baseline.json --compact || test $? -eq 1
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git switch -c regrade-baseline-${{ github.run_id }}
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -am "Update Regrade baseline"
+          git push -u origin HEAD
+          gh pr create --fill --title "Update Regrade baseline"
+```
+
 ## Baselines and CI: fail the pull request that made things worse
 
 `compare` needs a run to compare against, and a CI job starts with an empty `.regrade/` directory. **Run files** fill that gap: a portable JSON copy of a run, with every attempt's case hash, so `compare` still tells a changed case from a regression.
@@ -589,6 +742,8 @@ regrade import run.json                                # load a full run file in
 (A `--json` report is not a run file: it has no case hashes, so it can't be used as a baseline.)
 
 ### Recipe 1: a committed baseline (recommended)
+
+On GitHub, the [GitHub Action](#github-action) does this recipe for you. The steps below do the same with the CLI, for other CI systems or more control.
 
 Keep `regrade.baseline.json` in the repository. Every pull request compares against it, and moving the baseline is an ordinary, reviewed commit, so the git history doubles as the history of your pipeline's quality.
 
@@ -616,11 +771,11 @@ jobs:
       # Start your pipeline here if the suite calls it over HTTP.
       - name: Run the suite
         # Exit 1 (some cases failed) is fine here: the comparison decides. Exit 2 (bad config) still fails.
-        run: npx regrade@0.6 run regrade/suite.json --repeat 3 || test $? -eq 1
+        run: npx regrade@0.7 run regrade/suite.json --repeat 3 || test $? -eq 1
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       - name: Compare with the baseline
-        run: npx regrade@0.6 compare regrade.baseline.json --fail-on-regression --md regrade.md
+        run: npx regrade@0.7 compare regrade.baseline.json --fail-on-regression --md regrade.md
       - name: Job summary
         if: always()
         run: cat regrade.md >> "$GITHUB_STEP_SUMMARY"
@@ -651,7 +806,7 @@ jobs:
         with:
           node-version: 24
       - name: Run the suite
-        run: npx regrade@0.6 run regrade/suite.json --repeat 3 --export run.json --compact || test $? -eq 1
+        run: npx regrade@0.7 run regrade/suite.json --repeat 3 --export run.json --compact || test $? -eq 1
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       - name: Keep main's run as the baseline
@@ -667,7 +822,7 @@ jobs:
         run: |
           id=$(gh run list --workflow regrade.yml --branch main --event push --status success --limit 1 --json databaseId --jq '.[0].databaseId')
           gh run download "$id" --name regrade-baseline --dir baseline
-          npx regrade@0.6 compare baseline/run.json run.json --fail-on-regression --md regrade.md
+          npx regrade@0.7 compare baseline/run.json run.json --fail-on-regression --md regrade.md
           cat regrade.md >> "$GITHUB_STEP_SUMMARY"
 ```
 
@@ -744,6 +899,7 @@ regrade run <suite> [options]     Run a suite (.json, or a code suite: .ts .mts 
   --tag <tag>                     only cases with this tag (repeatable)
   --case <id>                     only this case (repeatable)
   --label <text>                  label the run (e.g. a prompt version)
+  --variant <name>                matrix suites: only this variant (repeatable)
   --judge <provider:model>        LLM judge model
   --no-judge-check                skip the one tiny call that checks the judge before any case runs
   --no-trace                      do not store the steps pipelines report
@@ -759,7 +915,8 @@ regrade export <run> [--out <file>] [--compact]    Write a run file (a baseline 
 regrade import <file>                              Load a full run file into the database
 regrade calibrate [--labels <file>] [--min-kappa <k>] [--json <file>] [--md <file>]   How often the judge agrees with your labels
                                                    (default: the labels saved from the dashboard)
-regrade serve [--port <n>] [--host <host>] [--open] Local dashboard: runs, trends, compare, labels, calibration
+regrade serve [--port <n>] [--host <host>] [--open] Local dashboard: runs, trends, compare, matrices, labels, calibration
+regrade matrix [id] [--reference <v>] [--list] [--md|--json|--out <file>]   Variants of a matrix side by side
 regrade init [--dir <dir>] [--force] [--ts]        Scaffold an example suite (--ts: a code suite, no server needed)
 regrade schema [--out <file>]                      Print the suite JSON Schema
 ```
@@ -815,7 +972,10 @@ For a single case to show a *significant* drop, about 5 attempts per side (5/5 �
 In `.regrade/results.db` on your machine. Regrade contacts only the pipeline and providers you configure. There is no telemetry and no update check.
 
 **How do I run it in GitHub Actions or another CI system?**
-Commit a compact baseline and run `regrade compare regrade.baseline.json --fail-on-regression` in the job. Any CI that runs Node.js works; copy-paste GitHub workflows are in [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse).
+On GitHub, use the [GitHub Action](#github-action) (`uses: dhrumilbhut/regrade@v0`) with a committed baseline. In any other CI that runs Node.js, run `regrade run … --export` and `regrade compare regrade.baseline.json --fail-on-regression` ([baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse)).
+
+**Can I compare several models or prompts?**
+Yes: add `variants` to a suite and `regrade run` makes one run per variant; `regrade matrix` shows them side by side with confidence intervals, cost and latency, and tests each against a reference ([matrix runs](#matrix-runs-compare-models-and-prompts-side-by-side)).
 
 **How is Regrade different from Promptfoo, DeepEval, Inspect AI or Ragas?**
 Those are mature evaluation tools, several with broader feature sets or hosted options. Regrade focuses narrowly on *regression testing*: repeated attempts per case, significance tests on the change between two runs, run files as CI baselines, and zero infrastructure, with no default provider. See [prior art](#prior-art).
@@ -846,7 +1006,9 @@ If you are an AI assistant setting up Regrade for a user, these facts are enough
 8. Add `.regrade/` to `.gitignore` (`init` does this): the database holds raw inputs and outputs.
 9. RAG: the pipeline reports retrieved documents as a `kind: "retrieval"` step whose `output` lists `{ id, text }`; cases list `expectedDocs` for the `retrieval` scorer. `faithfulness` and `contextRelevance` need a judge.
 10. To check the judge: the user labels judged answers in `regrade serve` (saved to the database), then `regrade calibrate --min-kappa 0.6`. A labels file (JSONL `{ run, case, attempt, scorer, label: "pass" | "fail" }`, exported from the HTML report) works with `--labels <file>`.
-11. `regrade serve` is for a person to look at results; it is not needed in CI. It binds to 127.0.0.1; do not suggest `--host 0.0.0.0` on shared machines.
+11. On GitHub, prefer the Action: `uses: dhrumilbhut/regrade@v0` with `suite:` (and `repeat:` equal to the baseline's). It needs a committed compact `regrade.baseline.json`; `comment: true` needs `permissions: pull-requests: write`.
+12. To compare models or prompts, add `variants: [{ name, pipeline: { config: {...} } }]` to the suite (at least two; config is merged over `pipeline.config`), run it, then `regrade matrix`.
+13. `regrade serve` is for a person to look at results; it is not needed in CI. It binds to 127.0.0.1; do not suggest `--host 0.0.0.0` on shared machines.
 
 A machine-readable summary is at [dhrumilbhut.github.io/regrade/llms.txt](https://dhrumilbhut.github.io/regrade/llms.txt), and this README as plain text at [llms-full.txt](https://dhrumilbhut.github.io/regrade/llms-full.txt).
 
@@ -865,7 +1027,7 @@ Regrade stands on ideas from [Promptfoo](https://www.promptfoo.dev), [DeepEval](
 
 ## Roadmap
 
-Shipped: suites (JSON and code), HTTP / OpenAI / Anthropic / function pipelines, eight built-in scorers including RAG (`retrieval`, `faithfulness`, `contextRelevance`), repeats and flakiness, `compare` with significance tests, judge calibration against your labels, HTML / Markdown / JSON reports, a local dashboard (`regrade serve`), run files and CI baselines, traces. Next: a GitHub Action, matrix runs across models, turning production failures into test cases, and a Python client. See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
+Shipped: suites (JSON and code), HTTP / OpenAI / Anthropic / function pipelines, eight built-in scorers including RAG (`retrieval`, `faithfulness`, `contextRelevance`), repeats and flakiness, `compare` with significance tests, judge calibration against your labels, HTML / Markdown / JSON reports, a local dashboard (`regrade serve`), run files and CI baselines, a GitHub Action, matrix runs across models and prompts, traces. Next: turning production failures into test cases, and a Python client. See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ## Development
 

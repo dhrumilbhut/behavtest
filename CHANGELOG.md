@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0]: GitHub Action and matrix runs
+
+Block the pull request that made results worse, and compare models or prompts side by side.
+
+### Added
+- **GitHub Action** (`uses: dhrumilbhut/regrade@v0`, `action.yml` at the repository root): runs the suite, compares it with a committed baseline, writes the comparison to the job summary, uploads the HTML report, run file and summaries as an artifact, and fails the check per `gate` (`regression` default, `significant`, `cases`, `none`; configuration errors always fail). Optional `comment: true` keeps one pull request comment up to date (per job and suite). Inputs `suite`, `baseline`, `repeat`, `min-pass-rate`, `judge`, `args`, `working-directory`, `report`, `artifact-name`; outputs `result`, `regressed`, `run-id`, `report-path`. It runs the Regrade release matching its tag; releases move the `v0` tag. A demo repository shows it passing one pull request and blocking another.
+- **Matrix runs:** `variants` on a suite (JSON or code; each merged over `pipeline.config`, or with its own adapter or pipeline function) make `regrade run` run the suite once per variant, as ordinary runs grouped by a matrix id. The planned number of calls is printed first; `--variant` runs a subset. The judge and cases are the same for every variant.
+- **`regrade matrix [id]`:** the variants side by side: attempt pass rate with Wilson intervals, cases passed, flaky cases, p95 latency, cost, a case × variant grid, and each variant against a reference (`--reference`, default the first) with the same permutation test and bootstrap interval as `compare`. `--list`, `--md`, `--json`, and `--out` for a single-file HTML report with a dot-and-interval chart.
+- Dashboard: a **Matrix** page (chart, variant table, case grid linking to each run's case, reference picker), one pass-rate trend per variant, and variant names in the runs table.
+- `examples/matrix/` (four OpenAI models on twelve questions) and `examples/github-action/` (a keyless suite and baseline).
+- Library: `runMatrix`, `resolveVariant`, `selectVariants`, `mergeConfig`, `plannedAttempts`, `buildMatrix`, `loadMatrix`, `pickMatrix`, `renderMatrixConsole`, `renderMatrixMarkdown`, `renderMatrixHtml`; optional `Store.listMatrices` and `getMatrix`; `RunRecord.matrixId` / `variant` (all additive). The database schema moves to version 5 (`runs.matrix_id`, `runs.variant`); existing databases upgrade automatically.
+
+### Fixed
+- **TypeScript projects without `@types/node` failed to type-check** against 0.6.0's typings (`Cannot find module 'node:http'`), because `startDashboard` exposed Node.js server types. Its result no longer includes the Node `server` object, and `dashboardHandler` is no longer exported (it was internal to `regrade serve`). A test keeps Node.js types out of the published typings.
+
+### Changed
+- `regrade compare` with one run (or none) compares it with the previous run **of the same variant**; `compare`, `runs`, `show` and reports show a run's variant.
+- README: GitHub Action and matrix sections; the CI recipes point to the Action (the CLI recipes remain for other CI systems).
+
 ## [0.6.0]: RAG scorers, judge calibration and a local dashboard
 
 Test what a RAG pipeline retrieved and whether its answers stay grounded in it, measure whether the LLM judge agrees with you, and browse it all in a local dashboard. (0.5.0 was never published; its changes are included here.)

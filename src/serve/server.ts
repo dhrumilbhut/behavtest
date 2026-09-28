@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { isIP } from "node:net";
 import { errorMessage } from "../core/errors.js";
 import { safeJson } from "../report/html/render.js";
@@ -17,8 +17,8 @@ export interface DashboardServerOptions {
   db?: string;
 }
 
+/** A running dashboard. (No Node.js types here: the library's typings must work without @types/node.) */
 export interface DashboardServer {
-  server: Server;
   url: string;
   host: string;
   port: number;
@@ -189,7 +189,6 @@ export function startDashboard(opts: DashboardServerOptions): Promise<DashboardS
       const port = typeof addr === "object" && addr ? addr.port : (opts.port ?? 4800);
       const shown = host === "0.0.0.0" || host === "::" ? "localhost" : host.includes(":") ? `[${host}]` : host;
       resolve({
-        server,
         host,
         port,
         url: `http://${shown}:${port}/`,
