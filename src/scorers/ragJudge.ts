@@ -5,9 +5,9 @@ import type { Scorer, ScoreArgs, ScoreResult } from "../core/types.js";
 import { judgePreflight, parseJudgeJson, runJudge, verdictSchema } from "./judge.js";
 import {
   buildRagPrompt,
-  CONTEXT_RELEVANCE_SCHEMA,
+  claimsSchemaFor,
+  relevanceSchemaFor,
   CONTEXT_RELEVANCE_SYSTEM,
-  FAITHFULNESS_CLAIMS_SCHEMA,
   FAITHFULNESS_CLAIMS_SYSTEM,
   FAITHFULNESS_VERDICT_SYSTEM,
   JUDGE_SCHEMA,
@@ -72,7 +72,7 @@ export const faithfulness: Scorer = {
 
   preflight: (ctx) => judgePreflight("faithfulness", ctx, parseFaithfulness),
 
-  async score({ input, output, trace, config, runtime }) {
+  async score({ output, trace, config, runtime }) {
     const cfg = parseFaithfulness(config);
     if (typeof cfg === "string") return { pass: false, value: null, error: cfg };
     const docs = contextOf(trace);
@@ -80,7 +80,7 @@ export const faithfulness: Scorer = {
     const spec = cfg.judge ?? runtime.judge;
 
     if (cfg.mode === "answer") {
-      const prompt = buildRagPrompt({ system: FAITHFULNESS_VERDICT_SYSTEM, question: input, docs, answer: output });
+      const prompt = buildRagPrompt({ system: FAITHFULNESS_VERDICT_SYSTEM, docs, answer: output });
       return runJudge({
         spec,
         runtime,
@@ -92,12 +92,12 @@ export const faithfulness: Scorer = {
     }
 
     const min = cfg.min ?? 1;
-    const prompt = buildRagPrompt({ system: FAITHFULNESS_CLAIMS_SYSTEM, question: input, docs, answer: output });
+    const prompt = buildRagPrompt({ system: FAITHFULNESS_CLAIMS_SYSTEM, docs, answer: output });
     return runJudge({
       spec,
       runtime,
       prompt,
-      schema: { name: "claims", schema: FAITHFULNESS_CLAIMS_SCHEMA },
+      schema: { name: "claims", schema: claimsSchemaFor(prompt.ids) },
       parse: (text) => parseJudgeJson(text, claimsSchema, "claims"),
       toResult: ({ claims }) => {
         if (claims.length === 0) return { pass: true, value: 1, reasoning: "the answer makes no factual claims" };
@@ -137,7 +137,7 @@ export const contextRelevance: Scorer = {
       spec: cfg.judge ?? runtime.judge,
       runtime,
       prompt,
-      schema: { name: "relevance", schema: CONTEXT_RELEVANCE_SCHEMA },
+      schema: { name: "relevance", schema: relevanceSchemaFor(prompt.ids) },
       parse: (text) => {
         const answer = parseJudgeJson(text, relevanceSchema, "relevance");
         const rated = new Map(answer.documents.map((d) => [d.id, d]));

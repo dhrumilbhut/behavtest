@@ -133,7 +133,7 @@ export function calibrate(store: Store, labels: readonly Label[]): CalibrationRe
     onErrored,
     duplicates,
     groups: [...groups.values()]
-      .sort((a, b) => b.pairs.length - a.pairs.length || a.scorer.localeCompare(b.scorer))
+      .sort((a, b) => b.pairs.length - a.pairs.length || a.scorer.localeCompare(b.scorer) || a.judge.localeCompare(b.judge) || (a.rubric ?? "").localeCompare(b.rubric ?? ""))
       .map((g) => {
         const c = confusionOf(g.pairs);
         const n = g.pairs.length;

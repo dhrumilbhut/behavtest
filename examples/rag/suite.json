@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/regrade/schema/suite.schema.json",
   "name": "store-policies-rag",
   "description": "The example RAG pipeline. Start it with: node examples/rag/server.mjs (add ?mode=degraded or ?mode=hallucinate to RAG_URL to see failures). faithfulness and contextRelevance need a judge: set OPENAI_API_KEY, or change defaults.judge.",
-  "defaults": { "judge": "openai:gpt-4.1-nano", "repeat": 1 },
+  "defaults": { "judge": "openai:gpt-5.4-nano", "repeat": 1 },
   "pipeline": {
     "adapter": "http",
     "config": { "url": "${RAG_URL:-http://localhost:4100/rag}" }
