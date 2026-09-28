@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0]: RAG scorers and judge calibration
+
+Test what a RAG pipeline retrieved and whether its answers stay grounded in it, and measure whether the LLM judge agrees with you.
+
 ### Added
 - **`retrieval` scorer** (RAG): compares the documents an attempt retrieved (its `retrieval` trace steps) with a case's new optional `expectedDocs`: `metric` `hit`, `recall`, `precision` or `mrr`, optional `k` and `min`. Deterministic, no model. Retrieved documents may be `{ id, text, score }`, plain strings, or LangChain-style `{ pageContent, metadata }`.
 - **`faithfulness` and `contextRelevance` scorers** (RAG, LLM judge): is the answer supported by the retrieved documents (`mode: "answer"` for one verdict, or `"claims"` to check each claim in the same single call, with `min`), and were the retrieved documents relevant to the question (per-document ratings, `min`). Retrieved documents are fenced as untrusted input like outputs; faithfulness never shows the judge the question (it judges support, not relevance), and document ids are listed outside the fenced data and enforced by the output schema. They share the judge machinery with `llmJudge`: structured output, fail-closed, temperature fallback, the pre-run check (now made once per judge per run, however many judge scorers use it) and the recorded judge model and temperature.
