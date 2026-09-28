@@ -234,6 +234,30 @@ describe("runs and show output", () => {
     expect(renderCaseDetail(run("r-2", err), err, "down", false, false)).toContain("error: HTTP 500");
   });
 
+  it("offers labelling (for regrade calibrate) on judged verdicts only, not on errored or non-judge scores", () => {
+    const attempts = [
+      attempt({
+        caseId: "j",
+        scores: [
+          { scorerName: "llmJudge", pass: true, value: 1, metadata: { judge: "openai:gpt-6-luna", temperature: 0 } },
+          { scorerName: "faithfulness", pass: false, value: null, error: "judge call failed", metadata: { judge: "openai:gpt-6-luna" } },
+          { scorerName: "exactMatch", pass: true, value: 1 },
+        ],
+      }),
+    ];
+    const html = renderHtmlReport({ report: buildRunReport(run("r-4", attempts), attempts), version: "1" });
+    const scores = JSON.parse(/<script type="application\/json" id="regrade-data">([\s\S]*?)<\/script>/.exec(html)![1]!).cases[0].attempts[0].scores;
+    expect(scores.map((s: { scorerName: string; judged: boolean }) => [s.scorerName, s.judged])).toEqual([
+      ["llmJudge", true],
+      ["faithfulness", false],
+      ["exactMatch", false],
+    ]);
+    for (const piece of ["labelButtons(caseId, a.attempt, s.scorerName)", "regrade-labels:", "Export labels", "Click again to clear", "application/x-ndjson"]) {
+      expect(JS).toContain(piece);
+    }
+    expect(JS).not.toMatch(/confirm\(|alert\(|prompt\(/); // no blocking browser dialogs
+  });
+
   it("shows which judge scored a verdict, and flags a default temperature", () => {
     const judged = mk("j", ["passed", "passed"]).map((a, i) => ({
       ...a,

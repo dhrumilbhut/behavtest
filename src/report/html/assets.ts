@@ -190,6 +190,16 @@ ul.scores .sn { font-weight: 600; min-width: 96px; }
 ul.scores .sr { color: var(--ink2); overflow-wrap: anywhere; }
 ul.scores .sm { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .empty { color: var(--ink2); padding: 16px; text-align: center; }
+.lab { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.lab .lt { font-size: 12px; color: var(--muted); }
+.lb { font: inherit; font-size: 12px; font-weight: 500; color: var(--ink2); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+.lb:hover { border-color: var(--muted); color: var(--ink); }
+.lb[aria-pressed="true"][data-v="pass"] { background: color-mix(in srgb, var(--good) 16%, transparent); border-color: var(--good); color: var(--ink); }
+.lb[aria-pressed="true"][data-v="fail"] { background: color-mix(in srgb, var(--critical) 14%, transparent); border-color: var(--critical); color: var(--ink); }
+.labels { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px; margin-bottom: 12px; border: 1px dashed var(--border); border-radius: 12px; font-size: 13px; color: var(--ink2); }
+.labels .lh { flex: 1 1 280px; }
+.labels .lcount { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.btn[disabled] { opacity: .5; cursor: default; }
 footer { color: var(--muted); font-size: 12.5px; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--grid); }
 
 @media (max-width: 640px) {
@@ -416,7 +426,79 @@ export const JS = String.raw`
 
   // ---- cases ----
   function kv(k, v) { return h('div', { class: 'kv' }, h('div', { class: 'k', text: k }), h('pre', { text: v })); }
-  function attemptBlock(a) {
+  // ---- your own pass/fail labels on judged answers, exported for regrade calibrate ----
+  var LKEY = 'regrade-labels:' + run.runId;
+  var labels = {};
+  try { labels = JSON.parse(localStorage.getItem(LKEY) || '{}') || {}; } catch (e) { labels = {}; }
+  var onLabelsChanged = function () {};
+  function saveLabels() {
+    try { localStorage.setItem(LKEY, JSON.stringify(labels)); } catch (e) {}
+    onLabelsChanged();
+  }
+  function labelButtons(caseId, attempt, scorer) {
+    var k = JSON.stringify([caseId, attempt, scorer]);
+    var pass = h('button', { type: 'button', class: 'lb', 'data-v': 'pass', text: 'Pass' });
+    var fail = h('button', { type: 'button', class: 'lb', 'data-v': 'fail', text: 'Fail' });
+    function sync() {
+      pass.setAttribute('aria-pressed', labels[k] === 'pass' ? 'true' : 'false');
+      fail.setAttribute('aria-pressed', labels[k] === 'fail' ? 'true' : 'false');
+    }
+    function set(v) { if (labels[k] === v) delete labels[k]; else labels[k] = v; sync(); saveLabels(); }
+    pass.addEventListener('click', function () { set('pass'); });
+    fail.addEventListener('click', function () { set('fail'); });
+    sync();
+    return h('div', { class: 'lab', role: 'group', 'aria-label': 'Your label for this answer (' + scorer + ')' },
+      h('span', { class: 'lt', text: 'Your label:' }), pass, fail);
+  }
+  function labelsJsonl() {
+    return Object.keys(labels).map(function (k) {
+      var p = JSON.parse(k);
+      return JSON.stringify({ run: run.runId, case: p[0], attempt: p[1], scorer: p[2], label: labels[k] });
+    }).join('\n') + '\n';
+  }
+  function labelBar() {
+    var judged = D.cases.some(function (c) { return c.attempts.some(function (a) { return a.scores.some(function (s) { return s.judged; }); }); });
+    if (!judged) return null;
+    var count = h('span', { class: 'lcount' });
+    var exp = h('button', { type: 'button', class: 'btn', text: 'Export labels' });
+    var copy = h('button', { type: 'button', class: 'btn', text: 'Copy' });
+    var clear = h('button', { type: 'button', class: 'btn', text: 'Clear' });
+    var armed = null;
+    exp.addEventListener('click', function () {
+      var url = URL.createObjectURL(new Blob([labelsJsonl()], { type: 'application/x-ndjson' }));
+      var a = h('a', { href: url, download: 'regrade-labels-' + run.runId.slice(0, 8) + '.jsonl' });
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    });
+    copy.addEventListener('click', function () {
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(labelsJsonl()).then(function () { copy.textContent = 'Copied'; setTimeout(function () { copy.textContent = 'Copy'; }, 1400); }, function () {});
+    });
+    clear.addEventListener('click', function () {
+      if (!armed) { // two clicks, no browser dialog
+        clear.textContent = 'Click again to clear';
+        armed = setTimeout(function () { armed = null; clear.textContent = 'Clear'; }, 3000);
+        return;
+      }
+      clearTimeout(armed); armed = null; clear.textContent = 'Clear';
+      labels = {}; saveLabels(); draw();
+    });
+    var draw = function () {};
+    function sync() {
+      var n = Object.keys(labels).length;
+      count.textContent = n + ' labelled';
+      exp.disabled = copy.disabled = clear.disabled = n === 0;
+    }
+    onLabelsChanged = sync;
+    sync();
+    var bar = h('div', { class: 'labels' },
+      h('span', { class: 'lh', text: 'Check the judge: mark judged answers Pass or Fail yourself, export the labels, then run regrade calibrate --labels <file>. Labels are kept in this browser.' }),
+      count, exp, copy, clear);
+    bar.setRedraw = function (f) { draw = f; };
+    return bar;
+  }
+
+  function attemptBlock(a, caseId) {
     var head = h('div', { class: 'ahead' }, statusOf(ST[a.status]), h('span', { class: 'cnum', text: 'Attempt ' + a.attempt }));
     if (a.latencyMs !== null) head.appendChild(h('span', { class: 'cnum', text: ms(a.latencyMs) }));
     head.appendChild(h('span', { class: 'cnum', text: a.costUsd === null ? 'cost unknown' : usd(a.costUsd) }));
@@ -430,7 +512,8 @@ export const JS = String.raw`
         list.appendChild(h('li', null, badgeOf(m), h('span', { class: 'sn', text: s.scorerName }),
           h('div', null,
             h('span', { class: 'sr', text: s.error ? 'error: ' + s.error : (s.reasoning || (s.pass ? 'passed' : 'failed')) }),
-            s.note ? h('div', { class: 'sm', text: s.note }) : null)));
+            s.note ? h('div', { class: 'sm', text: s.note }) : null,
+            s.judged ? labelButtons(caseId, a.attempt, s.scorerName) : null)));
       });
       block.appendChild(list);
     }
@@ -478,7 +561,7 @@ export const JS = String.raw`
     var tags = (c.tags && c.tags.length) ? h('span', { class: 'tags' }, c.tags.map(function (t) { return h('span', { class: 'tag', text: t }); })) : null;
     var body = h('div', { class: 'cbody' }, kv('Input', c.inputText));
     if (c.expected !== null && c.expected !== undefined) body.appendChild(kv('Expected', c.expected));
-    c.attempts.forEach(function (a) { body.appendChild(attemptBlock(a)); });
+    c.attempts.forEach(function (a) { body.appendChild(attemptBlock(a, c.caseId)); });
     return h('details', { class: 'case', open: open ? true : false },
       h('summary', null,
         statusOf(ST[c.verdict]),
@@ -525,7 +608,9 @@ export const JS = String.raw`
     var search = h('input', { class: 'search', type: 'search', placeholder: 'Search cases', 'aria-label': 'Search cases' });
     search.addEventListener('input', function () { state.q = search.value.toLowerCase(); draw(); });
     draw();
-    return h('section', { class: 'block' }, h('h2', { class: 'sec', text: 'Cases' }), h('div', { class: 'tools' }, chips, search), list);
+    var bar = labelBar();
+    if (bar) bar.setRedraw(draw);
+    return h('section', { class: 'block' }, h('h2', { class: 'sec', text: 'Cases' }), h('div', { class: 'tools' }, chips, search), bar, list);
   }
 
   function footer() {

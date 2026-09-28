@@ -101,6 +101,8 @@ export function renderHtmlReport(opts: HtmlReportOptions): string {
           error: s.error ? clip(s.error, 4000) : null,
           costUsd: s.costUsd ?? null,
           note: scoreNote(s) || null,
+          // a judge's verdict you can label for `regrade calibrate`
+          judged: typeof s.metadata?.judge === "string" && !s.error,
         })),
         trace: a.trace && a.trace.length > 0 ? reportTrace(a.trace) : null,
       })),
