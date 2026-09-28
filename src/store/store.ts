@@ -30,8 +30,8 @@ export interface Store {
   /** Accepts a full run id or a unique prefix. Throws `ConfigError` if ambiguous. */
   getRun(idOrPrefix: string): RunRecord | undefined;
   listRuns(opts?: { suiteName?: string; limit?: number }): RunRecord[];
-  /** Attempts in insertion order. Traces are loaded only when asked for (`traces: true`). */
-  getAttempts(runId: string, opts?: { traces?: boolean }): AttemptRecord[];
+  /** Attempts in insertion order. Traces are loaded only when asked for (`traces: true`); `caseId` limits them to one case. */
+  getAttempts(runId: string, opts?: { traces?: boolean; caseId?: string }): AttemptRecord[];
   /** Save (or replace) your label on one judged verdict. Optional: stores without labels skip calibration from storage. */
   setLabel?(label: StoredLabel): void;
   /** Remove a label; true when one existed. */

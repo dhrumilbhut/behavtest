@@ -10,6 +10,7 @@ import { runsCommand } from "./commands/runs.js";
 import { showCommand } from "./commands/show.js";
 import { runCommand } from "./commands/run.js";
 import { schemaCommand } from "./commands/schema.js";
+import { serveCommand } from "./commands/serve.js";
 import { VERSION } from "./version.js";
 
 function intOption(name: string, min: number, max = Number.MAX_SAFE_INTEGER) {
@@ -161,6 +162,24 @@ changed (or that only exist in one run, or errored) are listed but never counted
     .option("--db <path>", "results database", ".regrade/results.db")
     .action((run: string, opts) => {
       reportCommand(run, opts);
+    });
+
+  program
+    .command("serve")
+    .description("Open a local dashboard: browse runs and trends, compare any two runs, label judged answers, and see judge calibration")
+    .option("--db <path>", "results database", ".regrade/results.db")
+    .option("--port <n>", "port to listen on (default 4800)", intOption("--port", 0, 65535))
+    .option("--host <host>", "interface to listen on (default 127.0.0.1, this machine only)")
+    .option("--open", "open the dashboard in your browser")
+    .addHelpText(
+      "after",
+      `
+The dashboard reads the same database as regrade runs/compare, and writes only your judge labels.
+It listens on 127.0.0.1 by default. Another --host (e.g. 0.0.0.0) exposes your runs to your network
+with no login; regrade prints a warning when you do that.`,
+    )
+    .action(async (opts) => {
+      process.exitCode = await serveCommand(opts);
     });
 
   program

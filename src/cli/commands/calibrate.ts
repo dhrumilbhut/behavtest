@@ -15,7 +15,7 @@ export interface CalibrateOptions {
   color?: boolean;
 }
 
-const k2 = (x: number) => x.toFixed(2);
+const k2 = (x: number) => (Math.abs(x) < 0.005 ? 0 : x).toFixed(2); // never "-0.00"
 const kappaText = (g: CalibrationGroup) =>
   g.kappa === null ? "undefined" : `${k2(g.kappa)}${g.kappaInterval ? ` [${k2(g.kappaInterval.lo)}, ${k2(g.kappaInterval.hi)}]` : ""}`;
 const rubricText = (g: CalibrationGroup) => (g.rubric ? (g.rubric.length > 70 ? `"${g.rubric.slice(0, 67)}..."` : `"${g.rubric}"`) : "default rubric");

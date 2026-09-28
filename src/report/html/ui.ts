@@ -312,7 +312,7 @@ var RegradeUI = (function () {
     return details;
   }
   var RANK = { errored: 0, failed: 1, flaky: 2, passed: 3 };
-  /** The case list with outcome filters and search. extra: an element shown above the list (or null). */
+  /** The case list with outcome filters and search. extra: an element shown above the list (or null). opts.openCase: open that case (else the first failing one). */
   function casesSection(allCases, opts, extra) {
     var cases = allCases.slice().sort(function (a, b) { return RANK[a.verdict] - RANK[b.verdict]; });
     var state = { f: 'all', q: '' };
@@ -327,7 +327,10 @@ var RegradeUI = (function () {
       cases.forEach(function (c, i) {
         if (state.f !== 'all' && c.verdict !== state.f) return;
         if (state.q && (c.caseId + ' ' + (c.tags || []).join(' ')).toLowerCase().indexOf(state.q) < 0) return;
-        list.appendChild(caseItem(c, i === firstBad && state.f === 'all' && !state.q, opts));
+        var open = opts.openCase ? c.caseId === opts.openCase : (i === firstBad && state.f === 'all' && !state.q);
+        var item = caseItem(c, open, opts);
+        list.appendChild(item);
+        if (open && opts.openCase) setTimeout(function () { item.scrollIntoView({ block: 'start' }); }, 0);
         n++;
       });
       if (!n) list.appendChild(h('div', { class: 'empty', text: 'No cases match.' }));

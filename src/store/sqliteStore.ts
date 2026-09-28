@@ -177,16 +177,19 @@ export class SqliteStore implements Store {
     return rows.map(mapRun);
   }
 
-  getAttempts(runId: string, opts: { traces?: boolean } = {}): AttemptRecord[] {
+  getAttempts(runId: string, opts: { traces?: boolean; caseId?: string } = {}): AttemptRecord[] {
+    const one = opts.caseId !== undefined;
+    const caseFilter = one ? " AND case_id = ?" : "";
+    const params = one ? [runId, opts.caseId] : [runId];
     const results = this.db
-      .prepare(`SELECT * FROM results WHERE run_id = ? ORDER BY result_id`)
-      .all(runId) as Row[];
+      .prepare(`SELECT * FROM results WHERE run_id = ?${caseFilter} ORDER BY result_id`)
+      .all(...params) as Row[];
     const scoreStmt = this.db.prepare(`SELECT * FROM scores WHERE result_id = ? ORDER BY score_id`);
     const traces = new Map<unknown, string>();
     if (opts.traces) {
       const rows = this.db
-        .prepare(`SELECT t.result_id, t.trace_json FROM traces t JOIN results r USING (result_id) WHERE r.run_id = ?`)
-        .all(runId) as Row[];
+        .prepare(`SELECT t.result_id, t.trace_json FROM traces t JOIN results r USING (result_id) WHERE r.run_id = ?${one ? " AND r.case_id = ?" : ""}`)
+        .all(...params) as Row[];
       for (const t of rows) traces.set(t.result_id, String(t.trace_json));
     }
     return results.map((r) => {
