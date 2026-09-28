@@ -13,7 +13,7 @@ import type {
   Usage,
 } from "../core/types.js";
 import { LATEST_SCHEMA_VERSION, migrations } from "./migrations.js";
-import type { NewRun, Store } from "./store.js";
+import type { LabelKey, NewRun, Store, StoredLabel } from "./store.js";
 
 type Row = Record<string, unknown>;
 
@@ -217,6 +217,44 @@ export class SqliteStore implements Store {
       const trace = traces.get(r.result_id);
       if (trace !== undefined) attempt.trace = JSON.parse(trace) as TraceStep[];
       return attempt;
+    });
+  }
+
+  setLabel(l: StoredLabel): void {
+    this.db
+      .prepare(
+        `INSERT INTO labels (run_id, case_id, attempt, scorer, label, note, updated_at)
+         VALUES (@runId, @caseId, @attempt, @scorer, @label, @note, @updatedAt)
+         ON CONFLICT (run_id, case_id, attempt, scorer) DO UPDATE SET label = excluded.label, note = excluded.note, updated_at = excluded.updated_at`,
+      )
+      .run({ ...l, note: l.note ?? null });
+  }
+
+  deleteLabel(k: LabelKey): boolean {
+    return (
+      this.db
+        .prepare(`DELETE FROM labels WHERE run_id = ? AND case_id = ? AND attempt = ? AND scorer = ?`)
+        .run(k.runId, k.caseId, k.attempt, k.scorer).changes > 0
+    );
+  }
+
+  listLabels(opts: { runId?: string } = {}): StoredLabel[] {
+    const rows = (
+      opts.runId
+        ? this.db.prepare(`SELECT * FROM labels WHERE run_id = ? ORDER BY label_id`).all(opts.runId)
+        : this.db.prepare(`SELECT * FROM labels ORDER BY label_id`).all()
+    ) as Row[];
+    return rows.map((r) => {
+      const label: StoredLabel = {
+        runId: String(r.run_id),
+        caseId: String(r.case_id),
+        attempt: Number(r.attempt),
+        scorer: String(r.scorer),
+        label: r.label === "pass" ? "pass" : "fail",
+        updatedAt: String(r.updated_at),
+      };
+      if (typeof r.note === "string") label.note = r.note;
+      return label;
     });
   }
 

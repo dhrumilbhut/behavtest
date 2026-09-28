@@ -86,6 +86,24 @@ ALTER TABLE results ADD COLUMN cache_write_1h_tokens INTEGER;
 ALTER TABLE results ADD COLUMN reasoning_tokens INTEGER;
 `,
   },
+  {
+    version: 4,
+    description: "labels: your own pass/fail on judged verdicts (one per run, case, attempt and scorer), for calibration",
+    sql: `
+CREATE TABLE labels (
+  label_id   INTEGER PRIMARY KEY,
+  run_id     TEXT NOT NULL REFERENCES runs(run_id) ON DELETE CASCADE,
+  case_id    TEXT NOT NULL,
+  attempt    INTEGER NOT NULL,
+  scorer     TEXT NOT NULL,
+  label      TEXT NOT NULL CHECK (label IN ('pass','fail')),
+  note       TEXT,
+  updated_at TEXT NOT NULL,
+  UNIQUE (run_id, case_id, attempt, scorer)
+);
+CREATE INDEX idx_labels_run ON labels(run_id);
+`,
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = migrations[migrations.length - 1]?.version ?? 0;

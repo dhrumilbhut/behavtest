@@ -229,3 +229,35 @@ describe("SqliteStore", () => {
     raw.close();
   });
 });
+
+describe("SqliteStore labels", () => {
+  it("saves one label per verdict (a new label replaces the old), lists them, deletes them, and drops them with their run", () => {
+    const store = open(tmpDb());
+    store.createRun(newRun("r1"));
+    store.createRun(newRun("r2"));
+    const key = { runId: "r1", caseId: "c", attempt: 1, scorer: "llmJudge" };
+    store.setLabel({ ...key, label: "pass", updatedAt: "2026-09-28T10:00:00.000Z" });
+    store.setLabel({ ...key, label: "fail", note: "invents a refund", updatedAt: "2026-09-28T10:01:00.000Z" });
+    store.setLabel({ runId: "r2", caseId: "c", attempt: 2, scorer: "faithfulness", label: "pass", updatedAt: "2026-09-28T10:02:00.000Z" });
+    expect(store.listLabels({ runId: "r1" })).toEqual([{ ...key, label: "fail", note: "invents a refund", updatedAt: "2026-09-28T10:01:00.000Z" }]);
+    expect(store.listLabels()).toHaveLength(2);
+    expect(store.deleteLabel(key)).toBe(true);
+    expect(store.deleteLabel(key)).toBe(false);
+    expect(store.listLabels()).toHaveLength(1);
+    const raw = new Database(tmpDbPathOf(store));
+    raw.pragma("foreign_keys = ON");
+    raw.prepare("DELETE FROM runs WHERE run_id = 'r2'").run();
+    raw.close();
+    expect(store.listLabels()).toEqual([]);
+  });
+
+  it("rejects a label other than pass or fail", () => {
+    const store = open();
+    store.createRun(newRun("r"));
+    expect(() => store.setLabel({ runId: "r", caseId: "c", attempt: 1, scorer: "s", label: "maybe" as "pass", updatedAt: "t" })).toThrow(/CHECK/);
+  });
+});
+
+function tmpDbPathOf(store: SqliteStore): string {
+  return (store as unknown as { db: { name: string } }).db.name;
+}

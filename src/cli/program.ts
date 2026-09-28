@@ -126,7 +126,7 @@ changed (or that only exist in one run, or errored) are listed but never counted
   program
     .command("calibrate")
     .description("Measure how often an LLM judge agrees with your own pass/fail labels (agreement, Cohen's kappa, false pass and false fail rates)")
-    .requiredOption("--labels <file>", 'JSONL labels: one {run, case, attempt?, scorer?, label: "pass"|"fail"} per line (export them from the HTML report)')
+    .option("--labels <file>", 'JSONL labels: one {run, case, attempt?, scorer?, label: "pass"|"fail"} per line (default: the labels saved in the database by regrade serve)')
     .option("--min-kappa <k>", "exit 1 unless every judge has at least 30 labels and kappa at or above this (e.g. 0.6)", kappaOption)
     .option("--db <path>", "results database", ".regrade/results.db")
     .option("--json <file>", "write the calibration as JSON")

@@ -174,3 +174,30 @@ describe("calibrate", () => {
     expect(md).toContain("| llmJudge | openai:gpt-4.1-nano | \"Cites the policy?\" | 40 | 90%");
   });
 });
+
+describe("calibrate from stored labels", () => {
+  it("regrade calibrate without --labels reads the labels saved in the database", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { calibrateCommand } = await import("../../src/cli/commands/calibrate.js");
+    const dir = mkdtempSync(join(tmpdir(), "regrade-cal-"));
+    const path = join(dir, "results.db");
+    const s = new SqliteStore(path);
+    s.createRun({ runId: "run-one", suiteName: "s", suiteHash: "h", startedAt: "2026-09-28T10:00:00.000Z", regradeVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {} });
+    s.saveAttempt("run-one", attempt({ caseId: "c", attempt: 1, scores: [{ scorerName: "llmJudge", pass: true, value: 1, metadata: { judge: "openai:x" } }] }));
+    const writes: string[] = [];
+    const orig = process.stdout.write.bind(process.stdout);
+    process.stdout.write = ((chunk: string) => (writes.push(String(chunk)), true)) as typeof process.stdout.write;
+    try {
+      expect(() => calibrateCommand({ db: path, color: false })).toThrow(/No labels stored in the database yet/);
+      s.setLabel({ runId: "run-one", caseId: "c", attempt: 1, scorer: "llmJudge", label: "pass", updatedAt: "t" });
+      expect(calibrateCommand({ db: path, color: false })).toBe(0);
+    } finally {
+      process.stdout.write = orig;
+      s.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+    expect(writes.join("")).toContain("regrade calibrate · 1 labels, 1 matched");
+  });
+});

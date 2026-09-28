@@ -2,6 +2,21 @@ import type { AttemptRecord, RunRecord, RunStatus, RunSummary } from "../core/ty
 
 export type NewRun = Omit<RunRecord, "finishedAt" | "summary" | "status">;
 
+/** Identifies one verdict: a scorer's score on one attempt of a case in a run. */
+export interface LabelKey {
+  runId: string;
+  caseId: string;
+  attempt: number;
+  scorer: string;
+}
+
+/** Your own pass/fail on a judged answer, used to calibrate the judge. */
+export interface StoredLabel extends LabelKey {
+  label: "pass" | "fail";
+  note?: string;
+  updatedAt: string;
+}
+
 /**
  * Persistence contract. SQLite is the default implementation; the interface
  * keeps a future Postgres store a port rather than a redesign.
@@ -17,5 +32,11 @@ export interface Store {
   listRuns(opts?: { suiteName?: string; limit?: number }): RunRecord[];
   /** Attempts in insertion order. Traces are loaded only when asked for (`traces: true`). */
   getAttempts(runId: string, opts?: { traces?: boolean }): AttemptRecord[];
+  /** Save (or replace) your label on one judged verdict. Optional: stores without labels skip calibration from storage. */
+  setLabel?(label: StoredLabel): void;
+  /** Remove a label; true when one existed. */
+  deleteLabel?(key: LabelKey): boolean;
+  /** Stored labels, optionally for one run. */
+  listLabels?(opts?: { runId?: string }): StoredLabel[];
   close(): void;
 }

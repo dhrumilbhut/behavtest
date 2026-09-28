@@ -1,12 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { calibrate, calibrationGate, MIN_LABELS, parseLabels, type CalibrationGate, type CalibrationGroup, type CalibrationReport } from "../../calibration/calibrate.js";
+import { calibrate, calibrationGate, MIN_LABELS, parseLabels, type CalibrationGate, type CalibrationGroup, type CalibrationReport, type Label } from "../../calibration/calibrate.js";
 import { ConfigError, errorMessage } from "../../core/errors.js";
 import { pct, pctWithInterval } from "../../report/format.js";
 import { colorFor, openExistingStore } from "./common.js";
 
 export interface CalibrateOptions {
-  labels: string;
+  /** A JSONL labels file; without it, the labels stored in the database (from `regrade serve`). */
+  labels?: string;
   db?: string;
   minKappa?: number;
   json?: string;
@@ -85,15 +86,24 @@ function write(path: string, text: string): void {
 
 /** Returns the exit code: 0, or 1 when --min-kappa is given and the gate fails. */
 export function calibrateCommand(o: CalibrateOptions): number {
-  let text: string;
-  try {
-    text = readFileSync(o.labels, "utf8");
-  } catch (err) {
-    throw new ConfigError(`Cannot read labels file "${o.labels}": ${errorMessage(err)}`);
+  let fileLabels: Label[] | undefined;
+  if (o.labels) {
+    let text: string;
+    try {
+      text = readFileSync(o.labels, "utf8");
+    } catch (err) {
+      throw new ConfigError(`Cannot read labels file "${o.labels}": ${errorMessage(err)}`);
+    }
+    fileLabels = parseLabels(text, `"${o.labels}"`);
   }
-  const labels = parseLabels(text, `"${o.labels}"`);
   const store = openExistingStore(o.db);
   try {
+    const labels: Label[] =
+      fileLabels ??
+      store.listLabels().map((l) => ({ run: l.runId, case: l.caseId, attempt: l.attempt, scorer: l.scorer, label: l.label, ...(l.note ? { note: l.note } : {}) }));
+    if (labels.length === 0) {
+      throw new ConfigError("No labels stored in the database yet. Label judged answers in `regrade serve`, or pass --labels <file>.");
+    }
     const report = calibrate(store, labels);
     const gate = o.minKappa === undefined ? undefined : calibrationGate(report, o.minKappa);
     process.stdout.write(renderCalibration(report, gate, o.color === false ? false : undefined));
