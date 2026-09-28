@@ -168,6 +168,14 @@
           "expected": {
             "type": "string"
           },
+          "expectedDocs": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
           "tags": {
             "type": "array",
             "items": {

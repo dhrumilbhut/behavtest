@@ -93,6 +93,52 @@ export function flattenTrace(steps: readonly TraceStep[] | undefined): TraceStep
   return out;
 }
 
+/** A document a `retrieval` step returned. `id` is missing when the pipeline reported plain text. */
+export interface RetrievedDoc {
+  id?: string;
+  text?: string;
+  score?: number;
+}
+
+function asDoc(item: unknown): RetrievedDoc | undefined {
+  if (typeof item === "string") return { text: item };
+  if (!item || typeof item !== "object") return undefined;
+  const o = item as Record<string, unknown>;
+  const meta = (o.metadata && typeof o.metadata === "object" ? o.metadata : {}) as Record<string, unknown>;
+  const rawId = o.id ?? meta.id ?? meta.source; // LangChain documents keep the id in metadata
+  const text = [o.text, o.content, o.pageContent].find((t) => typeof t === "string") as string | undefined;
+  const doc: RetrievedDoc = {};
+  if (typeof rawId === "string" || typeof rawId === "number") doc.id = String(rawId);
+  if (text !== undefined) doc.text = text;
+  if (typeof o.score === "number" && Number.isFinite(o.score)) doc.score = o.score;
+  return doc.id !== undefined || doc.text !== undefined ? doc : undefined;
+}
+
+/**
+ * The documents an attempt retrieved: the `output` of every `retrieval` step, in order, with
+ * repeated ids kept once. Accepts `{ id, text, score }`, plain strings, and LangChain-style
+ * `{ pageContent, metadata: { id | source } }`. `undefined` when the trace has no retrieval step.
+ */
+export function retrievedDocs(steps: readonly TraceStep[] | undefined): RetrievedDoc[] | undefined {
+  const retrievals = flattenTrace(steps).filter((s) => s.kind === "retrieval");
+  if (retrievals.length === 0) return undefined;
+  const seen = new Set<string>();
+  const docs: RetrievedDoc[] = [];
+  for (const step of retrievals) {
+    const items = Array.isArray(step.output) ? step.output : step.output === undefined ? [] : [step.output];
+    for (const item of items) {
+      const doc = asDoc(item);
+      if (!doc) continue;
+      if (doc.id !== undefined) {
+        if (seen.has(doc.id)) continue;
+        seen.add(doc.id);
+      }
+      docs.push(doc);
+    }
+  }
+  return docs;
+}
+
 export interface Tracer {
   /** The recorded steps; return them from your pipeline as `steps`. */
   steps: TraceStep[];

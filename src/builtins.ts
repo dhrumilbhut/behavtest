@@ -5,6 +5,7 @@ import { Registry } from "./core/registry.js";
 import { exactMatch } from "./scorers/exactMatch.js";
 import { latencyCost } from "./scorers/latencyCost.js";
 import { llmJudge } from "./scorers/llmJudge.js";
+import { retrieval } from "./scorers/retrieval.js";
 import { maxSteps, toolCalled } from "./scorers/traceScorers.js";
 
 /** Built-ins register through the same public API that user code uses. */
@@ -17,7 +18,8 @@ export function registerBuiltins(registry: Registry): Registry {
     .registerScorer(llmJudge)
     .registerScorer(latencyCost)
     .registerScorer(toolCalled)
-    .registerScorer(maxSteps);
+    .registerScorer(maxSteps)
+    .registerScorer(retrieval);
   return registry;
 }
 

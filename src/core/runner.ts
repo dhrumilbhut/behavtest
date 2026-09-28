@@ -141,6 +141,7 @@ export async function runSuite(opts: RunOptions): Promise<RunOutcome> {
   const judgeFromEnv = env.REGRADE_JUDGE ? env.REGRADE_JUDGE : undefined;
   const judge = overrides.judge ?? defaults.judge ?? judgeFromEnv;
   const scorerNames = [...new Set(cases.flatMap((c) => c.scorers))];
+  const usesJudge = scorerNames.some((n) => registry.getScorer(n).usesJudge);
   for (const name of scorerNames) {
     await registry.getScorer(name).preflight?.({ cases, judge, env, signal: opts.signal, warn, liveChecks: overrides.judgeCheck !== false });
   }
@@ -153,7 +154,7 @@ export async function runSuite(opts: RunOptions): Promise<RunOutcome> {
     typeof pipelineConfig.model === "string"
       ? `${suite.pipeline.adapter}:${pipelineConfig.model}`
       : undefined;
-  if (judge && pipelineModel === judge && scorerNames.includes("llmJudge")) {
+  if (judge && pipelineModel === judge && usesJudge) {
     warn(
       `the judge model (${judge}) is the same as the pipeline model: LLM judges tend to favour their own outputs, ` +
         "so scores may be optimistic. Prefer a different judge.",
@@ -200,7 +201,7 @@ export async function runSuite(opts: RunOptions): Promise<RunOutcome> {
     runId,
     suiteName: suite.name,
     pipelineLabel: label,
-    judge: scorerNames.includes("llmJudge") ? judge : undefined,
+    judge: usesJudge ? judge : undefined,
     caseIds: cases.map((c) => c.id),
     caseCount: cases.length,
     attemptCount: jobs.length,
@@ -245,6 +246,7 @@ export async function runSuite(opts: RunOptions): Promise<RunOutcome> {
           res = await raceAbort(registry.getScorer(name).score({
             input: testCase.input,
             expected: testCase.expected,
+            expectedDocs: testCase.expectedDocs,
             output: result.output,
             config: testCase.scorerConfig?.[name],
             meta: {
@@ -276,8 +278,11 @@ export async function runSuite(opts: RunOptions): Promise<RunOutcome> {
 
     const fingerprints = testCase.scorers.map((n) => registry.getScorer(n).fingerprint ?? null);
     // A different judge is a different measuring stick; a per-case judge is already in scorerConfig.
-    const runJudge =
-      testCase.scorers.includes("llmJudge") && testCase.scorerConfig?.llmJudge?.judge === undefined ? judge : undefined;
+    const runJudge = testCase.scorers.some(
+      (n) => registry.getScorer(n).usesJudge && testCase.scorerConfig?.[n]?.judge === undefined,
+    )
+      ? judge
+      : undefined;
     let status: AttemptStatus;
     if (error !== undefined || scores.some((s) => s.error)) status = "errored";
     else if (scores.some((s) => !s.pass)) status = "failed";
@@ -291,6 +296,7 @@ export async function runSuite(opts: RunOptions): Promise<RunOutcome> {
         expected: testCase.expected ?? null,
         scorers: testCase.scorers,
         scorerConfig: testCase.scorerConfig ?? null,
+        ...(testCase.expectedDocs ? { expectedDocs: testCase.expectedDocs } : {}),
         // only present when some scorer has a fingerprint, so hashes of built-in-only suites are unchanged
         ...(fingerprints.some((f) => f !== null) ? { scorerFingerprints: fingerprints } : {}),
         ...(runJudge ? { judge: runJudge } : {}),

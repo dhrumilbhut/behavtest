@@ -96,6 +96,8 @@ export interface ScoreRuntime {
 export interface ScoreArgs {
   input: CaseInput;
   expected?: string;
+  /** The case's `expectedDocs`, if any. */
+  expectedDocs?: string[];
   output: string;
   config?: Record<string, unknown>;
   meta: {
@@ -148,6 +150,11 @@ export interface Scorer {
    * instead of silently comparing results produced by different logic.
    */
   fingerprint?: string;
+  /**
+   * True for scorers that ask an LLM judge (resolved from `scorerConfig.<name>.judge`, `--judge`,
+   * `defaults.judge` or `REGRADE_JUDGE`). The run's judge then becomes part of the case's identity.
+   */
+  usesJudge?: boolean;
   score(args: ScoreArgs): Promise<ScoreResult>;
   /** Optional fail-fast validation before any case runs (may be async). Throws `ConfigError`. */
   preflight?(ctx: ScorerPreflightContext): void | Promise<void>;
@@ -159,6 +166,8 @@ export interface TestCase {
   id: string;
   input: CaseInput;
   expected?: string;
+  /** Ids of the documents a correct retrieval should return (for the `retrieval` scorer). */
+  expectedDocs?: string[];
   tags?: string[];
   scorers: string[];
   scorerConfig?: Record<string, Record<string, unknown>>;

@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **`retrieval` scorer** (RAG): compares the documents an attempt retrieved (its `retrieval` trace steps) with a case's new optional `expectedDocs`: `metric` `hit`, `recall`, `precision` or `mrr`, optional `k` and `min`. Deterministic, no model. Retrieved documents may be `{ id, text, score }`, plain strings, or LangChain-style `{ pageContent, metadata }`.
+- **Example RAG pipeline** (`examples/rag/`): a fictional store's policy documents, a keyword retriever and a deterministic answerer, with `healthy`, `degraded` (retrieval breaks) and `hallucinate` (unsupported claim) modes; HTTP server or importable module.
+- Library: `retrievedDocs(trace)`; `Scorer.usesJudge` (additive: any judge-based scorer now makes the judge model part of a case's identity).
+
 ### Changed
 - **HTML report restyled** to match the documentation site: new light and dark palettes, larger type for the summary figures, accent-coloured filters and open cases, softer cards and code blocks. Same single self-contained file, same features. The report and the website now share the saved theme choice.
 - Documentation website: redesigned landing page with light and dark themes and a theme toggle.

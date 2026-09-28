@@ -40,6 +40,7 @@ const testCaseSchema = z.strictObject({
   id: z.string().regex(idPattern, "id may only contain letters, digits, '.', '_' and '-'"),
   input: inputSchema,
   expected: z.string().optional(),
+  expectedDocs: z.array(z.string().min(1)).min(1).optional(),
   tags: z.array(z.string().min(1)).optional(),
   scorers: z.array(z.string().min(1)).min(1, "at least one scorer is required"),
   scorerConfig: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),

@@ -144,6 +144,7 @@ function addCost(total: number | null | undefined, add: number | null): number |
  */
 export const llmJudge: Scorer = {
   name: "llmJudge",
+  usesJudge: true,
 
   async preflight({ cases, judge, env, signal, warn, liveChecks }) {
     const users = cases.filter((c) => c.scorers.includes("llmJudge"));
