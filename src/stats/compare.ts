@@ -23,6 +23,8 @@ export interface RunMeta {
   label: string | null;
   gitSha: string | null;
   gitDirty: boolean | null;
+  /** On runs of a matrix. */
+  variant?: string;
 }
 
 export interface CaseComparison {
@@ -82,6 +84,7 @@ const meta = (r: RunRecord): RunMeta => ({
   label: r.label,
   gitSha: r.gitSha,
   gitDirty: r.gitDirty,
+  ...(r.variant ? { variant: r.variant } : {}),
 });
 
 function byCase(attempts: readonly AttemptRecord[]): Map<string, AttemptRecord[]> {

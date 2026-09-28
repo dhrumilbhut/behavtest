@@ -280,6 +280,35 @@ describe("dashboard API", () => {
   });
 });
 
+describe("dashboard API: matrices", () => {
+  it("lists matrices, builds one with any reference, and gives each variant its own trend", async () => {
+    const mk = (runId: string, variant: string, startedAt: string, pass: boolean) => {
+      store.createRun({ runId, suiteName: "mx", suiteHash: "h", startedAt, regradeVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: { adapter: "fn" }, matrixId: "mmmm-1", variant });
+      const attempts = [attempt({ caseId: "q", attempt: 1, status: pass ? "passed" : "failed", scores: [exact(pass)] })];
+      store.saveAttempt(runId, attempts[0]!);
+      store.finishRun(runId, "completed", startedAt, summarize(attempts));
+    };
+    mk("mx-a", "small", "2026-09-28T14:00:00.000Z", false);
+    mk("mx-b", "large", "2026-09-28T14:01:00.000Z", true);
+
+    const list = await api("GET", "/matrices");
+    expect(list.json.matrices).toEqual([
+      { matrixId: "mmmm-1", suiteName: "mx", startedAt: "2026-09-28T14:00:00.000Z", variants: [{ variant: "small", runId: "mx-a", status: "completed" }, { variant: "large", runId: "mx-b", status: "completed" }] },
+    ]);
+    const one = await api("GET", "/matrices/mmmm");
+    expect(one.json.matrix).toMatchObject({ reference: "small", variants: [{ variant: "small" }, { variant: "large", vsReference: { meanDelta: 1 } }] });
+    expect((await api("GET", "/matrices/mmmm?reference=large")).json.matrix.reference).toBe("large");
+    expect((await api("GET", "/matrices/mmmm?reference=nope")).status).toBe(400);
+    expect((await api("GET", "/matrices/zzzz")).status).toBe(404);
+
+    const suites = (await api("GET", "/suites")).json.suites.find((s: any) => s.suiteName === "mx");
+    expect(suites).toMatchObject({ runs: 2, plainRuns: 0, variants: [{ variant: "large", runs: 1 }, { variant: "small", runs: 1 }] });
+    expect((await api("GET", "/trend?suite=mx&variant=large")).json.points.map((p: any) => p.runId)).toEqual(["mx-b"]);
+    expect((await api("GET", "/trend?suite=mx")).json.points).toEqual([]); // no runs outside the matrix
+    expect((await api("GET", "/runs/mx-b")).json.run).toMatchObject({ matrixId: "mmmm-1", variant: "large" });
+  });
+});
+
 describe("dashboard page", () => {
   const html = renderDashboard({ version: "1.2.3", db: "</script><b>x" });
   const scripts = [...html.matchAll(/<script(?: [^>]*)?>([\s\S]*?)<\/script>/g)].map((m) => m[1] as string);

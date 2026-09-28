@@ -196,6 +196,17 @@ export interface PriceEntryInput {
   validUntil?: string;
 }
 
+/**
+ * One variant of a matrix: the same cases through a different pipeline setup (a model, a prompt version).
+ * `config` is merged over the suite's `pipeline.config` (nested objects merged, other values replaced);
+ * a different `adapter` replaces the config instead.
+ */
+export interface SuiteVariant {
+  name: string;
+  description?: string;
+  pipeline?: { adapter?: string; config?: Record<string, unknown> };
+}
+
 export interface TestSuite {
   $schema?: string;
   name: string;
@@ -203,6 +214,8 @@ export interface TestSuite {
   defaults?: SuiteDefaults;
   pricing?: PriceEntryInput[];
   pipeline: { adapter: string; config: Record<string, unknown> };
+  /** Run the suite once per variant, side by side (`regrade matrix`). */
+  variants?: SuiteVariant[];
   cases: TestCase[];
 }
 
@@ -262,6 +275,9 @@ export interface RunRecord {
   label: string | null;
   pipeline: Record<string, unknown>;
   summary: RunSummary | null;
+  /** Set on runs of a matrix: the matrix they belong to and the variant's name. */
+  matrixId?: string;
+  variant?: string;
 }
 
 /** v1 `RunResult` shape, assembled from `results` + `scores` for reporters and the library API. */

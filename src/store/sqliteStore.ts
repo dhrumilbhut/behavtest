@@ -13,7 +13,7 @@ import type {
   Usage,
 } from "../core/types.js";
 import { LATEST_SCHEMA_VERSION, migrations } from "./migrations.js";
-import type { LabelKey, NewRun, Store, StoredLabel } from "./store.js";
+import type { LabelKey, MatrixSummary, NewRun, Store, StoredLabel } from "./store.js";
 
 type Row = Record<string, unknown>;
 
@@ -65,9 +65,9 @@ export class SqliteStore implements Store {
     this.db
       .prepare(
         `INSERT INTO runs (run_id, suite_name, suite_hash, started_at, status, regrade_version,
-                           git_sha, git_dirty, label, pipeline_json)
+                           git_sha, git_dirty, label, pipeline_json, matrix_id, variant)
          VALUES (@runId, @suiteName, @suiteHash, @startedAt, 'running', @regradeVersion,
-                 @gitSha, @gitDirty, @label, @pipeline)`,
+                 @gitSha, @gitDirty, @label, @pipeline, @matrixId, @variant)`,
       )
       .run({
         runId: run.runId,
@@ -79,6 +79,8 @@ export class SqliteStore implements Store {
         gitDirty: run.gitDirty === null ? null : run.gitDirty ? 1 : 0,
         label: run.label,
         pipeline: JSON.stringify(run.pipeline),
+        matrixId: run.matrixId ?? null,
+        variant: run.variant ?? null,
       });
   }
 
@@ -175,6 +177,36 @@ export class SqliteStore implements Store {
         : this.db.prepare(`SELECT * FROM runs ORDER BY started_at DESC LIMIT ?`).all(limit)
     ) as Row[];
     return rows.map(mapRun);
+  }
+
+  listMatrices(opts: { suiteName?: string; limit?: number } = {}): MatrixSummary[] {
+    const limit = opts.limit ?? 20;
+    const ids = (
+      opts.suiteName
+        ? this.db
+            .prepare(`SELECT matrix_id, MIN(started_at) AS s FROM runs WHERE matrix_id IS NOT NULL AND suite_name = ? GROUP BY matrix_id ORDER BY s DESC LIMIT ?`)
+            .all(opts.suiteName, limit)
+        : this.db.prepare(`SELECT matrix_id, MIN(started_at) AS s FROM runs WHERE matrix_id IS NOT NULL GROUP BY matrix_id ORDER BY s DESC LIMIT ?`).all(limit)
+    ) as Row[];
+    return ids.map((r) => this.matrixOf(String(r.matrix_id)));
+  }
+
+  getMatrix(idOrPrefix: string): MatrixSummary | undefined {
+    const ids = this.db
+      .prepare(`SELECT DISTINCT matrix_id FROM runs WHERE matrix_id IS NOT NULL AND substr(matrix_id, 1, ?) = ? LIMIT 2`)
+      .all(idOrPrefix.length, idOrPrefix) as Row[];
+    if (ids.length > 1) throw new ConfigError(`Matrix id prefix "${idOrPrefix}" is ambiguous; use more characters.`);
+    return ids[0] ? this.matrixOf(String(ids[0].matrix_id)) : undefined;
+  }
+
+  private matrixOf(matrixId: string): MatrixSummary {
+    const rows = this.db.prepare(`SELECT run_id, suite_name, started_at, status, variant FROM runs WHERE matrix_id = ? ORDER BY started_at, rowid`).all(matrixId) as Row[];
+    return {
+      matrixId,
+      suiteName: String(rows[0]?.suite_name),
+      startedAt: String(rows[0]?.started_at),
+      variants: rows.map((r) => ({ variant: String(r.variant), runId: String(r.run_id), status: r.status as RunStatus })),
+    };
   }
 
   getAttempts(runId: string, opts: { traces?: boolean; caseId?: string } = {}): AttemptRecord[] {
@@ -280,6 +312,8 @@ function mapRun(r: Row): RunRecord {
     label: str(r.label),
     pipeline: JSON.parse(String(r.pipeline_json)) as Record<string, unknown>,
     summary: r.summary_json ? (JSON.parse(String(r.summary_json)) as RunSummary) : null,
+    // only on matrix runs, so plain runs keep their exact shape
+    ...(r.matrix_id && r.variant ? { matrixId: String(r.matrix_id), variant: String(r.variant) } : {}),
   };
 }
 

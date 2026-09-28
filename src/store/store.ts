@@ -10,6 +10,16 @@ export interface LabelKey {
   scorer: string;
 }
 
+/** A matrix: runs of one suite, one per variant, started together. */
+export interface MatrixSummary {
+  matrixId: string;
+  suiteName: string;
+  /** When its first run started. */
+  startedAt: string;
+  /** Variant names in the order they ran, with their run ids. */
+  variants: Array<{ variant: string; runId: string; status: RunRecord["status"] }>;
+}
+
 /** Your own pass/fail on a judged answer, used to calibrate the judge. */
 export interface StoredLabel extends LabelKey {
   label: "pass" | "fail";
@@ -30,6 +40,10 @@ export interface Store {
   /** Accepts a full run id or a unique prefix. Throws `ConfigError` if ambiguous. */
   getRun(idOrPrefix: string): RunRecord | undefined;
   listRuns(opts?: { suiteName?: string; limit?: number }): RunRecord[];
+  /** Matrices, newest first. Optional: stores without matrix support skip `regrade matrix`. */
+  listMatrices?(opts?: { suiteName?: string; limit?: number }): MatrixSummary[];
+  /** One matrix by id or unique prefix. Throws `ConfigError` if ambiguous. */
+  getMatrix?(idOrPrefix: string): MatrixSummary | undefined;
   /** Attempts in insertion order. Traces are loaded only when asked for (`traces: true`); `caseId` limits them to one case. */
   getAttempts(runId: string, opts?: { traces?: boolean; caseId?: string }): AttemptRecord[];
   /** Save (or replace) your label on one judged verdict. Optional: stores without labels skip calibration from storage. */

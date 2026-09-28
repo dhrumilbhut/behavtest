@@ -27,6 +27,7 @@ export function fmtDate(iso: string): string {
 
 export function runLine(m: RunMeta): string {
   const parts = [m.runId.slice(0, 8), fmtDate(m.startedAt)];
+  if (m.variant) parts.push(`[${m.variant}]`);
   if (m.label) parts.push(m.label);
   if (m.gitSha) parts.push(`${m.gitSha.slice(0, 7)}${m.gitDirty ? "*" : ""}`);
   if (m.status !== "completed") parts.push(`(${m.status})`);

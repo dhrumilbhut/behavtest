@@ -72,6 +72,22 @@ export const testSuiteSchema = z.strictObject({
     adapter: z.string().min(1),
     config: z.record(z.string(), z.unknown()),
   }),
+  variants: z
+    .array(
+      z.strictObject({
+        name: z.string().regex(idPattern, "name may only contain letters, digits, '.', '_' and '-'"),
+        description: z.string().optional(),
+        pipeline: z
+          .strictObject({
+            adapter: z.string().min(1).optional(),
+            config: z.record(z.string(), z.unknown()).optional(),
+          })
+          .optional(),
+      }),
+    )
+    .min(2, "a matrix needs at least two variants (leave \"variants\" out for a single pipeline)")
+    .max(20, "at most 20 variants")
+    .optional(),
   cases: z.array(testCaseSchema).min(1, "a suite needs at least one case"),
 });
 
@@ -113,6 +129,17 @@ export function checkSuite(suite: TestSuite, registry: Registry, source = "suite
       `pipeline.adapter: unknown adapter "${suite.pipeline.adapter}" (registered: ${registry.adapterNames().join(", ")})`,
     );
   }
+
+  const names = new Map<string, number>();
+  (suite.variants ?? []).forEach((v, i) => {
+    const prev = names.get(v.name);
+    if (prev !== undefined) problems.push(`variants[${i}].name: duplicate variant "${v.name}" (also variants[${prev}])`);
+    else names.set(v.name, i);
+    const adapter = v.pipeline?.adapter;
+    if (adapter !== undefined && !registry.hasAdapter(adapter)) {
+      problems.push(`variants[${i}].pipeline.adapter: unknown adapter "${adapter}" (registered: ${registry.adapterNames().join(", ")})`);
+    }
+  });
 
   const seen = new Map<string, number>();
   suite.cases.forEach((c, i) => {

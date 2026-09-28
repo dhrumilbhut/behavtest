@@ -39,6 +39,9 @@ export interface RunOverrides {
   /** Only these case ids. */
   caseIds?: string[];
   label?: string;
+  /** Set by `runMatrix`: the matrix this run belongs to and its variant's name. */
+  matrixId?: string;
+  variant?: string;
   /** Judge model as `provider:model`; beats suite defaults and REGRADE_JUDGE. */
   judge?: string;
   /** Default true: before any case runs, make one tiny call to each judge to check it works. */
@@ -77,6 +80,13 @@ export interface RunOutcome {
   passRate: number;
   /** 0 all cases passed (or --min-pass-rate met), 1 otherwise, 130 interrupted. */
   exitCode: 0 | 1 | 130;
+}
+
+/** How many attempts a run of this suite will make with these overrides (validates the case filters too). */
+export function plannedAttempts(suite: TestSuite, o: RunOverrides = {}): { cases: number; attempts: number } {
+  const cases = selectCases(suite.cases, o);
+  const repeat = (c: TestCase) => o.repeat ?? c.repeat ?? suite.defaults?.repeat ?? 1;
+  return { cases: cases.length, attempts: cases.reduce((n, c) => n + repeat(c), 0) };
 }
 
 function selectCases(cases: readonly TestCase[], o: RunOverrides): TestCase[] {
@@ -189,6 +199,7 @@ export async function runSuite(opts: RunOptions): Promise<RunOutcome> {
     gitSha: opts.git?.sha ?? null,
     gitDirty: opts.git?.dirty ?? null,
     label: overrides.label ?? null,
+    ...(overrides.matrixId && overrides.variant ? { matrixId: overrides.matrixId, variant: overrides.variant } : {}),
     pipeline: {
       ...redacted.value,
       judge: judge ?? null,
@@ -201,6 +212,7 @@ export async function runSuite(opts: RunOptions): Promise<RunOutcome> {
     runId,
     suiteName: suite.name,
     pipelineLabel: label,
+    variant: overrides.variant,
     judge: usesJudge ? judge : undefined,
     caseIds: cases.map((c) => c.id),
     caseCount: cases.length,

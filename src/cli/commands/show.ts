@@ -55,6 +55,7 @@ export function renderRunSummary(run: RunRecord, attempts: AttemptRecord[], colo
   out.push(`${c.bold("run")} ${run.runId}  ${c.dim(`(${run.status})`)}`);
   out.push(`  suite    ${run.suiteName}`);
   out.push(`  started  ${fmtDate(run.startedAt)}${run.finishedAt ? `  →  ${fmtDate(run.finishedAt)}` : ""}`);
+  if (run.variant) out.push(`  variant  ${run.variant} (matrix ${run.matrixId?.slice(0, 8)})`);
   if (run.label) out.push(`  label    ${run.label}`);
   if (run.gitSha) out.push(`  git      ${run.gitSha.slice(0, 12)}${run.gitDirty ? " (uncommitted changes)" : ""}`);
   out.push(`  regrade  ${run.regradeVersion}`);

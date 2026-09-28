@@ -68,7 +68,7 @@ export function createConsoleReporter(opts: ConsoleReporterOptions): RunReporter
     onRunStart(info) {
       started = true;
       width = Math.min(40, Math.max(12, ...info.caseIds.map((id) => id.length + (info.repeat > 1 ? 6 : 0))));
-      const parts = [c.bold(`regrade ${opts.version}`), info.suiteName, info.pipelineLabel];
+      const parts = [c.bold(`regrade ${opts.version}`), info.variant ? `${info.suiteName} [${info.variant}]` : info.suiteName, info.pipelineLabel];
       if (info.judge) parts.push(`judge ${info.judge}`);
       line(parts.join(` ${sym.dot} `));
       line(

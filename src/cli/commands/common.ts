@@ -48,10 +48,10 @@ export function pickComparison(store: Store, refs: string[], suite?: string): { 
     }
     head = recent;
   }
-  // the previous run of the same suite that started before the head
+  // the previous run of the same suite (and, for matrix runs, the same variant) that started before the head
   const previous = store
-    .listRuns({ suiteName: head.suiteName, limit: 200 })
-    .find((r) => r.runId !== head.runId && r.startedAt < head.startedAt && r.status !== "running");
+    .listRuns({ suiteName: head.suiteName, limit: 500 })
+    .find((r) => r.runId !== head.runId && r.startedAt < head.startedAt && r.status !== "running" && r.variant === head.variant);
   if (!previous) {
     throw new ConfigError(
       `There is no earlier run of "${head.suiteName}" to compare run ${head.runId.slice(0, 8)} against. ` +

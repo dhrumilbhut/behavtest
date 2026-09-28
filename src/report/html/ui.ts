@@ -39,6 +39,7 @@ var RegradeUI = (function () {
   function when(iso) { var d = new Date(iso); return isNaN(d.getTime()) ? iso : d.toLocaleString(); }
   function runLabel(m) {
     var p = [m.runId.slice(0, 8), when(m.startedAt)];
+    if (m.variant) p.push('[' + m.variant + ']');
     if (m.label) p.push(m.label);
     if (m.gitSha) p.push(m.gitSha.slice(0, 7) + (m.gitDirty ? '*' : ''));
     if (m.status !== 'completed') p.push(m.status);
@@ -361,7 +362,140 @@ var RegradeUI = (function () {
     return cases.some(function (c) { return c.attempts.some(function (a) { return a.scores.some(function (s) { return s.judged; }); }); });
   }
 
+  // ---- matrix: variants side by side ----
+  var MVERDICT = {
+    'significant-regression': 'significantly worse',
+    'significant-improvement': 'significantly better',
+    'not-significant': 'not significant',
+    'no-comparable-cases': 'no comparable cases'
+  };
+  function vsText(v) {
+    var r = v.vsReference;
+    if (!r) return 'reference';
+    if (r.meanDelta === null) return MVERDICT[r.verdict];
+    var ci = r.ci ? ' [' + pts(r.ci.lo) + ', ' + pts(r.ci.hi) + ']' : '';
+    var p = r.pValue === null ? '' : ', p=' + (r.pValue < 0.0001 ? '<0.0001' : r.pValue.toFixed(3));
+    return pts(r.meanDelta) + ci + p + ' · ' + MVERDICT[r.verdict];
+  }
+  function costOf(S) {
+    if (S.attempts.total && S.costUsd.unknownAttempts === S.attempts.total) return 'unknown';
+    return usd(S.costUsd.pipeline + S.costUsd.judge) + (S.costUsd.unknownAttempts ? '+' : '');
+  }
+  /** Dot-and-interval rows: each variant's attempt pass rate and its 95% interval, a hairline at the reference. */
+  function intervalChart(M) {
+    var ref = M.variants.filter(function (v) { return v.variant === M.reference; })[0];
+    var refRate = ref && ref.attemptRate ? ref.attemptRate.rate : null;
+    var tip = null;
+    var box = h('div', { class: 'ichart', role: 'list', 'aria-label': 'Attempt pass rate per variant, with 95% intervals' });
+    function at(x) { return (x * 100) + '%'; }
+    function track(v) {
+      var t = h('div', { class: 'itrack' });
+      [0, 0.25, 0.5, 0.75, 1].forEach(function (g) { var l = h('span', { class: 'igrid' }); l.style.left = at(g); t.appendChild(l); });
+      if (refRate !== null) { var rl = h('span', { class: 'iref' }); rl.style.left = at(refRate); t.appendChild(rl); }
+      if (v.attemptRate) {
+        var span = h('span', { class: 'ispan' });
+        span.style.left = at(v.attemptRate.lo);
+        span.style.width = at(Math.max(0, v.attemptRate.hi - v.attemptRate.lo));
+        var dot = h('span', { class: 'idot' });
+        dot.style.left = at(v.attemptRate.rate);
+        t.appendChild(span); t.appendChild(dot);
+      }
+      return t;
+    }
+    function show(row, v) {
+      if (!tip) { tip = h('div', { class: 'tip' }); box.appendChild(tip); }
+      tip.textContent = '';
+      tip.appendChild(h('div', null, h('b', { text: v.variant }), h('span', { class: 'tm', text: '  ' + v.pipeline })));
+      tip.appendChild(h('div', { text: v.attemptRate ? pctI(v.attemptRate) + ' of attempts passed' : 'no scored attempts' }));
+      tip.appendChild(h('div', { text: v.summary.cases.passed + ' of ' + v.summary.cases.total + ' cases passed · ' + v.summary.cases.flaky + ' flaky · ' + costOf(v.summary) }));
+      tip.appendChild(h('div', { class: 'tm', text: 'vs ' + M.reference + ': ' + vsText(v) }));
+      tip.style.top = (row.offsetTop + row.offsetHeight) + 'px';
+    }
+    function hide() { if (tip) { tip.remove(); tip = null; } }
+    M.variants.forEach(function (v) {
+      var row = h('div', { class: 'irow', role: 'listitem', tabindex: '0',
+        'aria-label': v.variant + ': ' + (v.attemptRate ? pctI(v.attemptRate) : 'no scored attempts') + '; vs ' + M.reference + ' ' + vsText(v) },
+        h('div', { class: 'ilabel' }, h('span', { class: 'iname', text: v.variant }), v.variant === M.reference ? h('span', { class: 'tag', text: 'reference' }) : null,
+          v.pipeline !== v.variant ? h('span', { class: 'ipipe', text: v.pipeline }) : null),
+        track(v),
+        h('div', { class: 'ival', text: v.attemptRate ? pct(v.attemptRate.rate) : '–' }));
+      row.addEventListener('pointerenter', function () { show(row, v); });
+      row.addEventListener('pointerleave', hide);
+      row.addEventListener('focus', function () { show(row, v); });
+      row.addEventListener('blur', hide);
+      box.appendChild(row);
+    });
+    var axis = h('div', { class: 'irow iaxis', 'aria-hidden': 'true' }, h('div', { class: 'ilabel' }), h('div', { class: 'itrack' }), h('div', { class: 'ival' }));
+    [0, 0.5, 1].forEach(function (g) { var l = h('span', { class: 'itick', text: pct(g) }); l.style.left = at(g); axis.children[1].appendChild(l); });
+    box.appendChild(axis);
+    return box;
+  }
+  /** A matrix: the chart, the variant table and the case grid. opts.runHref(runId), opts.caseHref(runId, caseId): optional links. */
+  function matrixView(M, opts) {
+    opts = opts || {};
+    var rows = M.variants.map(function (v) {
+      var worse = v.vsReference && v.vsReference.verdict === 'significant-regression';
+      var better = v.vsReference && v.vsReference.verdict === 'significant-improvement';
+      return h('tr', null,
+        h('td', null, opts.runHref ? h('a', { href: opts.runHref(v.runId), text: v.variant }) : v.variant, v.variant === M.reference ? h('span', { class: 'note', text: 'reference' }) : null),
+        h('td', { class: 'id', text: v.pipeline }),
+        h('td', { class: 'num', text: v.attemptRate ? pctI(v.attemptRate) : '–' }),
+        h('td', { class: 'num', text: v.summary.cases.passed + ' / ' + v.summary.cases.total }),
+        h('td', { class: 'num', text: String(v.summary.cases.flaky) }),
+        h('td', { class: 'num', text: v.summary.latency ? ms(v.summary.latency.p95Ms) : '–' }),
+        h('td', { class: 'num', text: costOf(v.summary) }),
+        h('td', null, worse ? statusOf(['✗', 'Worse', '--critical']) : better ? statusOf(['✓', 'Better', '--good']) : null,
+          h('span', { class: 'note', text: vsText(v) })));
+    });
+    var variantTable = h('div', { class: 'card scroll', style: 'padding:6px 10px' },
+      h('table', null,
+        h('thead', null, h('tr', null, h('th', { text: 'Variant' }), h('th', { text: 'Pipeline' }), h('th', { class: 'num', text: 'Attempt pass rate' }),
+          h('th', { class: 'num', text: 'Cases passed' }), h('th', { class: 'num', text: 'Flaky' }), h('th', { class: 'num', text: 'p95 latency' }),
+          h('th', { class: 'num', text: 'Cost' }), h('th', { text: 'vs ' + M.reference }))),
+        h('tbody', null, rows)));
+
+    var differs = function (k) { var s = {}; k.cells.forEach(function (c) { s[c ? c.verdict : 'none'] = 1; }); return Object.keys(s).length > 1; };
+    var nDiff = M.cases.filter(differs).length;
+    var state = { onlyDiff: nDiff > 0 && M.cases.length > 12 };
+    var body = h('tbody');
+    function drawGrid() {
+      body.textContent = '';
+      var shown = M.cases.filter(function (k) { return !state.onlyDiff || differs(k); });
+      shown.forEach(function (k) {
+        body.appendChild(h('tr', { class: differs(k) ? 'diff' : null },
+          h('td', { class: 'id', text: k.caseId }),
+          k.cells.map(function (c, i) {
+            if (!c) return h('td', { class: 'num', text: '–' });
+            var label = c.passed + '/' + c.attempts;
+            var inner = h('span', { class: 'status' }, badgeOf(ST[c.verdict]), h('span', { class: 'cnum', text: label }));
+            var v = M.variants[i];
+            return h('td', { class: 'cell', title: v.variant + ': ' + ST[c.verdict][1] + ', ' + label + ' attempts passed' },
+              opts.caseHref ? h('a', { href: opts.caseHref(v.runId, k.caseId), class: 'plain' }, inner) : inner);
+          })));
+      });
+      if (!shown.length) body.appendChild(h('tr', null, h('td', { colspan: String(M.variants.length + 1), class: 'empty', text: 'Every case has the same outcome in every variant.' })));
+    }
+    var toggle = h('button', { class: 'chip', type: 'button', 'aria-pressed': state.onlyDiff ? 'true' : 'false', text: 'Only cases that differ (' + nDiff + ')' });
+    toggle.addEventListener('click', function () { state.onlyDiff = !state.onlyDiff; toggle.setAttribute('aria-pressed', state.onlyDiff ? 'true' : 'false'); drawGrid(); });
+    drawGrid();
+    var grid = h('div', { class: 'card scroll', style: 'padding:6px 10px' },
+      h('table', { class: 'mgrid' },
+        h('thead', null, h('tr', null, h('th', { text: 'Case' }), M.variants.map(function (v) { return h('th', { class: 'num', text: v.variant }); }))),
+        body));
+
+    return h('div', null,
+      M.warnings.map(function (w) { return h('div', { class: 'warn', text: 'Warning: ' + w }); }),
+      h('section', { class: 'block card' },
+        h('h2', { class: 'sec', text: 'Attempt pass rate by variant' }),
+        h('p', { class: 'meta', style: 'margin:-8px 0 12px', text: 'Dots are the pass rate, bars its 95% Wilson interval; the thin line marks the reference (' + M.reference + ').' }),
+        intervalChart(M)),
+      h('section', { class: 'block' }, h('h2', { class: 'sec', text: 'Variants' }), variantTable,
+        h('p', { class: 'meta', style: 'margin-top:8px', text: '"vs" is the mean change in pass rate per case against the reference, with a 95% interval and a case-stratified permutation test (the same statistics as regrade compare).' })),
+      h('section', { class: 'block' }, h('h2', { class: 'sec', text: 'Cases' }), h('div', { class: 'tools' }, h('div', { class: 'chips' }, toggle)), grid));
+  }
+
   return {
+    matrixView: matrixView, intervalChart: intervalChart, vsText: vsText,
     h: h, pct: pct, pctI: pctI, pts: pts, ms: ms, usd: usd, when: when, runLabel: runLabel,
     ST: ST, CH: CH, badgeOf: badgeOf, statusOf: statusOf, themeButton: themeButton,
     tiles: tiles, tile: tile, statusBar: statusBar, comparison: comparison,
@@ -383,6 +517,7 @@ export const REPORT_APP = String.raw`
 
   function header() {
     var meta = ['run ' + run.runId.slice(0, 8), U.when(run.startedAt)];
+    if (run.variant) meta.push('variant ' + run.variant);
     if (run.label) meta.push(run.label);
     if (run.gitSha) meta.push(run.gitSha.slice(0, 7) + (run.gitDirty ? '*' : ''));
     if (run.status !== 'completed') meta.push(run.status);

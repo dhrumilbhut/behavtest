@@ -21,7 +21,7 @@ export function renderRuns(runs: RunRecord[], color?: boolean): string {
       status: r.status,
       cases: s ? `${s.cases.passed}/${s.cases.total}` : "–",
       flaky: s && s.cases.flaky > 0 ? `${s.cases.flaky} flaky` : "",
-      label: r.label ?? "",
+      label: [r.variant ? `[${r.variant}]` : "", r.label ?? ""].filter(Boolean).join(" "),
       git: r.gitSha ? `${r.gitSha.slice(0, 7)}${r.gitDirty ? "*" : ""}` : "",
     };
   });

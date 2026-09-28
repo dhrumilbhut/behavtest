@@ -9,6 +9,7 @@ import type {
   Scorer,
   ScoreArgs,
   ScoreResult,
+  SuiteVariant,
   TestSuite,
   TraceStep,
   Usage,
@@ -38,8 +39,10 @@ export interface PipelineFunction {
 }
 
 /** A suite written in code (`*.suite.ts` / `*.suite.mjs`): the JSON suite shape plus inline scorers and a function pipeline. */
-export type CodeSuite = Omit<TestSuite, "pipeline"> & {
+export type CodeSuite = Omit<TestSuite, "pipeline" | "variants"> & {
   pipeline: TestSuite["pipeline"] | PipelineFunction;
+  /** Matrix variants; a variant's pipeline may be a function too (its own name defaults to the variant's). */
+  variants?: Array<Omit<SuiteVariant, "pipeline"> & { pipeline?: SuiteVariant["pipeline"] | PipelineFunction }>;
   /** Custom scorers, keyed by the name cases use in their `scorers` list. */
   scorers?: Record<string, InlineScorer>;
 };

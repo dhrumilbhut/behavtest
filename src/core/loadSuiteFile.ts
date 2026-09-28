@@ -70,7 +70,7 @@ export async function loadSuiteFile(path: string, base: Registry = createRegistr
     throw new ConfigError(`${path} must \`export default\` a suite object (or a function returning one).`);
   }
 
-  const { scorers: inline, pipeline, ...rest } = def as CodeSuite;
+  const { scorers: inline, pipeline, variants, ...rest } = def as CodeSuite;
   const registry = base;
 
   if (inline !== undefined) {
@@ -100,7 +100,20 @@ export async function loadSuiteFile(path: string, base: Registry = createRegistr
     pipelineData = pipeline as TestSuite["pipeline"];
   }
 
-  const suite = parseSuite({ ...rest, pipeline: pipelineData }, path);
+  let variantData: unknown = variants;
+  if (Array.isArray(variants)) {
+    variantData = variants.map((v) => {
+      if (!v || typeof v !== "object" || !isPipelineFunction(v.pipeline)) return v;
+      const adapter = functionAdapter({ ...v.pipeline, name: v.pipeline.name ?? String(v.name) });
+      if (registry.hasAdapter(adapter.name)) {
+        throw new ConfigError(`${path}: variant "${String(v.name)}": pipeline name "${adapter.name}" collides with another pipeline. Give it a unique name.`);
+      }
+      registry.registerAdapter(adapter);
+      return { ...v, pipeline: { adapter: adapter.name, config: v.pipeline.config ?? {} } };
+    });
+  }
+
+  const suite = parseSuite({ ...rest, pipeline: pipelineData, ...(variantData !== undefined ? { variants: variantData } : {}) }, path);
   checkSuite(suite, registry, path);
   return { suite, registry, kind: "code" };
 }

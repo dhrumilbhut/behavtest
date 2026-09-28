@@ -45,13 +45,6 @@ td a.rid { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; fon
 .chart .endlabel { fill: var(--ink); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .chart .cross { stroke: var(--muted); stroke-width: 1; }
 .chart .hit { fill: transparent; cursor: pointer; }
-.tip {
-  position: absolute; pointer-events: none; z-index: 2; min-width: 180px; max-width: 280px;
-  background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 10px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12); padding: 8px 10px; font-size: 12.5px; line-height: 1.45;
-}
-.tip b { font-weight: 600; font-variant-numeric: tabular-nums; }
-.tip .tm { color: var(--ink2); }
 .matrix { border-collapse: separate; border-spacing: 4px; width: auto; font-size: 13px; }
 .matrix th, .matrix td { border: 0; padding: 6px 10px; }
 .matrix td { background: var(--wash); border-radius: 8px; text-align: right; font-variant-numeric: tabular-nums; min-width: 84px; }
@@ -116,7 +109,7 @@ const DASH_APP = String.raw`
     function tab(href, label, key) { return h('a', { class: 'tab', href: href, 'aria-current': current === key ? 'page' : null, text: label }); }
     return h('nav', { class: 'nav', 'aria-label': 'Dashboard' },
       h('a', { class: 'brand', href: '#/', text: 'Regrade' }),
-      tab('#/', 'Runs', 'runs'), tab('#/compare', 'Compare', 'compare'), tab('#/calibration', 'Calibration', 'calibration'),
+      tab('#/', 'Runs', 'runs'), tab('#/compare', 'Compare', 'compare'), tab('#/matrices', 'Matrix', 'matrices'), tab('#/calibration', 'Calibration', 'calibration'),
       h('span', { class: 'spacer' }),
       CFG.db ? h('span', { class: 'db', title: 'Results database', text: CFG.db }) : null,
       U.themeButton());
@@ -276,12 +269,12 @@ const DASH_APP = String.raw`
     } else setTimeout(draw, 0);
     return box;
   }
-  function trendCard(suite, big) {
+  function trendCard(suite, big, variant) {
     var card = h('section', { class: 'card chart-card' },
-      h('h3', null, h('a', { href: '#/?suite=' + enc(suite), text: suite })),
-      h('p', { class: 'csub', text: 'Attempt pass rate per run, with its 95% interval' }),
+      h('h3', null, h('a', { href: '#/?suite=' + enc(suite), text: suite }), variant ? h('span', { class: 'tag', text: variant }) : null),
+      h('p', { class: 'csub', text: variant ? 'Variant ' + variant + ': attempt pass rate per run, with its 95% interval' : 'Attempt pass rate per run, with its 95% interval' }),
       loading());
-    api('/trend?suite=' + enc(suite) + '&limit=' + (big ? 100 : 30)).then(function (t) {
+    api('/trend?suite=' + enc(suite) + '&limit=' + (big ? 100 : 30) + (variant ? '&variant=' + enc(variant) : '')).then(function (t) {
       card.removeChild(card.lastChild);
       if (t.points.length < 2) {
         card.appendChild(h('p', { class: 'empty', text: t.points.length ? 'One finished run so far: the trend appears after the next.' : 'No finished runs yet.' }));
@@ -312,15 +305,22 @@ const DASH_APP = String.raw`
       sel.addEventListener('change', function () { location.hash = sel.value ? '#/?suite=' + enc(sel.value) : '#/'; });
       root.insertBefore(h('div', { class: 'tools' }, sel), after);
 
-      var shown = suite ? [suite] : suites.slice(0, 6).map(function (s) { return s.suiteName; });
-      root.insertBefore(h('div', { class: 'charts' }, shown.map(function (s) { return trendCard(s, !!suite); })), after);
-      if (!suite && suites.length > 6) root.insertBefore(h('p', { class: 'meta', style: 'margin:-16px 0 24px', text: 'Showing trends for the 6 most recently run suites; pick a suite to see its own.' }), after);
+      // one chart per series: a suite's runs outside any matrix, and each of its variants
+      var series = [];
+      suites.filter(function (s) { return !suite || s.suiteName === suite; }).forEach(function (s) {
+        if (s.plainRuns) series.push([s.suiteName, null]);
+        (s.variants || []).forEach(function (v) { series.push([s.suiteName, v.variant]); });
+      });
+      var cap = suite ? 12 : 6;
+      root.insertBefore(h('div', { class: 'charts' }, series.slice(0, cap).map(function (x) { return trendCard(x[0], !!suite && series.length === 1, x[1]); })), after);
+      if (series.length > cap) root.insertBefore(h('p', { class: 'meta', style: 'margin:-16px 0 24px', text: 'Showing ' + cap + ' of ' + series.length + ' trends (a suite’s variants each have their own); ' + (suite ? 'the rest are in the table below.' : 'pick a suite to see more.') }), after);
 
       var rows = runs.map(function (r) {
         var S = r.summary, href = '#/runs/' + enc(r.runId);
         var tr = h('tr', { class: 'link' },
           h('td', null, U.statusOf(outcomeOf(r))),
-          h('td', null, h('a', { class: 'rid', href: href, text: r.runId.slice(0, 8) }), r.label ? h('span', { class: 'note', text: r.label }) : null),
+          h('td', null, h('a', { class: 'rid', href: href, text: r.runId.slice(0, 8) }),
+            r.variant || r.label ? h('span', { class: 'note', text: [r.variant ? '[' + r.variant + ']' : '', r.label || ''].filter(Boolean).join(' ') }) : null),
           suite ? null : h('td', { text: r.suiteName }),
           h('td', { class: 'num', text: U.when(r.startedAt) }),
           h('td', { class: 'num', text: r.gitSha ? r.gitSha.slice(0, 7) + (r.gitDirty ? '*' : '') : '–' }),
@@ -383,10 +383,12 @@ const DASH_APP = String.raw`
       if (!live()) return;
       var run = D.run;
       var meta = ['run ' + run.runId.slice(0, 8), U.when(run.startedAt)];
+      if (run.variant) meta.push('variant ' + run.variant);
       if (run.label) meta.push(run.label);
       if (run.gitSha) meta.push(run.gitSha.slice(0, 7) + (run.gitDirty ? '*' : ''));
       if (run.status !== 'completed') meta.push(run.status);
       var actions = h('div', { class: 'row-actions' },
+        run.matrixId ? h('a', { class: 'btn', href: '#/matrices/' + enc(run.matrixId), text: 'Matrix' }) : null,
         h('a', { class: 'btn', href: '#/compare?head=' + enc(run.runId), text: 'Compare with previous' }),
         h('a', { class: 'btn', href: '#/?suite=' + enc(run.suiteName), text: 'All runs of this suite' }));
       var labels = labelStore(run.runId, D.labels || []);
@@ -442,6 +444,54 @@ const DASH_APP = String.raw`
           h('a', { href: '#/runs/' + enc(B.runId), text: 'base ' + B.runId.slice(0, 8) }), ' · ',
           h('a', { href: '#/runs/' + enc(H.runId), text: 'head ' + H.runId.slice(0, 8) })));
       }, function (err) { if (live()) { out.textContent = ''; out.appendChild(failed(err)); } });
+    }, function (err) { if (live()) root.replaceChild(failed(err), root.querySelector('.loading')); });
+  }
+
+  function matricesPage(live) {
+    var root = page('matrices', [title('Matrix runs', 'One suite run several ways (models, prompts), side by side'), loading()]);
+    api('/matrices').then(function (res) {
+      if (!live()) return;
+      var holder = root.querySelector('.loading');
+      if (!res.matrices.length) {
+        root.replaceChild(h('div', { class: 'card' },
+          h('h2', { class: 'sec', text: 'No matrix runs yet' }),
+          h('p', { class: 'info', text: 'Add "variants" to a suite, each changing the pipeline config (a model, a prompt), and run it: every variant becomes one run of the matrix, with the same cases and the same judge.' })), holder);
+        return;
+      }
+      var rows = res.matrices.map(function (m) {
+        var href = '#/matrices/' + enc(m.matrixId);
+        var tr = h('tr', { class: 'link' },
+          h('td', null, h('a', { class: 'rid', href: href, text: m.matrixId.slice(0, 8) })),
+          h('td', { text: m.suiteName }),
+          h('td', { class: 'num', text: U.when(m.startedAt) }),
+          h('td', { text: m.variants.map(function (v) { return v.variant; }).join(', ') }),
+          h('td', null, m.variants.every(function (v) { return v.status === 'completed'; }) ? '' : 'incomplete'));
+        tr.addEventListener('click', function (e) { if (e.target.tagName !== 'A') location.hash = href; });
+        return tr;
+      });
+      root.replaceChild(h('div', { class: 'card scroll', style: 'padding:6px 10px' },
+        h('table', null,
+          h('thead', null, h('tr', null, h('th', { text: 'Matrix' }), h('th', { text: 'Suite' }), h('th', { class: 'num', text: 'Started' }), h('th', { text: 'Variants' }), h('th', { text: 'Status' }))),
+          h('tbody', null, rows))), holder);
+    }, function (err) { if (live()) root.replaceChild(failed(err), root.querySelector('.loading')); });
+  }
+
+  function matrixPage(id, q, live) {
+    var root = page('matrices', [loading()]);
+    var ref = q.get('reference');
+    api('/matrices/' + enc(id) + (ref ? '?reference=' + enc(ref) : '')).then(function (res) {
+      if (!live()) return;
+      var M = res.matrix;
+      var pick = h('select', { class: 'pick', 'aria-label': 'Reference variant' },
+        M.variants.map(function (v) { return h('option', { value: v.variant, selected: v.variant === M.reference ? true : null, text: 'Compare with ' + v.variant }); }));
+      pick.addEventListener('change', function () { location.hash = '#/matrices/' + enc(M.matrixId) + '?reference=' + enc(pick.value); });
+      var meta = M.variants.length + ' variants  ·  matrix ' + M.matrixId.slice(0, 8) + '  ·  ' + U.when(M.startedAt);
+      root.replaceChild(h('div', null,
+        title(M.suiteName, meta, h('div', { class: 'row-actions' }, pick)),
+        U.matrixView(M, {
+          runHref: function (runId) { return '#/runs/' + enc(runId); },
+          caseHref: function (runId, caseId) { return '#/runs/' + enc(runId) + '?case=' + enc(caseId); }
+        })), root.querySelector('.loading'));
     }, function (err) { if (live()) root.replaceChild(failed(err), root.querySelector('.loading')); });
   }
 
@@ -523,9 +573,11 @@ const DASH_APP = String.raw`
     window.scrollTo(0, 0);
     if (parts[0] === 'runs' && id) runPage(id, q, live);
     else if (parts[0] === 'compare') comparePage(q, live);
+    else if (parts[0] === 'matrices' && id) matrixPage(id, q, live);
+    else if (parts[0] === 'matrices') matricesPage(live);
     else if (parts[0] === 'calibration') calibrationPage(live);
     else runsPage(q, live);
-    var t = { runs: 'Run', compare: 'Compare', calibration: 'Calibration' }[parts[0]];
+    var t = { runs: 'Run', compare: 'Compare', matrices: 'Matrix', calibration: 'Calibration' }[parts[0]];
     document.title = 'Regrade' + (t ? ' · ' + t : ' · Runs');
   }
   window.addEventListener('hashchange', route);

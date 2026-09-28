@@ -4,6 +4,7 @@ import { ConfigError } from "../core/errors.js";
 import type { RunRecord } from "../core/types.js";
 import { reportData } from "../report/html/render.js";
 import { buildRunReport } from "../report/model.js";
+import { buildMatrix, loadMatrix } from "../matrix/matrix.js";
 import { compareRuns } from "../stats/compare.js";
 import { wilsonInterval, type Proportion } from "../stats/wilson.js";
 import type { LabelKey, StoredLabel, Store } from "../store/store.js";
@@ -148,12 +149,22 @@ export function handleApi(ctx: ApiContext, req: ApiRequest): ApiResponse {
     }
     case "GET /suites": {
       const runs = store.listRuns({ limit: SUITE_SCAN });
-      const suites = new Map<string, { suiteName: string; runs: number; latest: ReturnType<typeof runRow> }>();
+      type SuiteRow = { suiteName: string; runs: number; plainRuns: number; variants: Array<{ variant: string; runs: number }>; latest: ReturnType<typeof runRow> };
+      const suites = new Map<string, SuiteRow>();
       for (const r of runs) {
         // listRuns is newest first, so the first run seen for a suite is its latest
-        const s = suites.get(r.suiteName);
-        if (s) s.runs++;
-        else suites.set(r.suiteName, { suiteName: r.suiteName, runs: 1, latest: runRow(r) });
+        let s = suites.get(r.suiteName);
+        if (!s) {
+          s = { suiteName: r.suiteName, runs: 0, plainRuns: 0, variants: [], latest: runRow(r) };
+          suites.set(r.suiteName, s);
+        }
+        s.runs++;
+        if (!r.variant) s.plainRuns++;
+        else {
+          const v = s.variants.find((x) => x.variant === r.variant);
+          if (v) v.runs++;
+          else s.variants.push({ variant: r.variant, runs: 1 });
+        }
       }
       return ok({ suites: [...suites.values()] });
     }
@@ -189,9 +200,12 @@ export function handleApi(ctx: ApiContext, req: ApiRequest): ApiResponse {
     case "GET /trend": {
       const suite = need(req.query, "suite");
       const limit = intParam(req.query, "limit", 2, 1000) ?? TREND_LIMIT;
+      // one series: the runs of one variant, or (without `variant`) the runs outside any matrix
+      const variant = req.query.get("variant") || undefined;
       const points = store
-        .listRuns({ suiteName: suite, limit })
-        .filter((r) => r.status !== "running" && r.summary)
+        .listRuns({ suiteName: suite, limit: SUITE_SCAN })
+        .filter((r) => r.status !== "running" && r.summary && r.variant === variant)
+        .slice(0, limit)
         .reverse() // oldest first
         .map((r) => ({
           runId: r.runId,
@@ -202,7 +216,29 @@ export function handleApi(ctx: ApiContext, req: ApiRequest): ApiResponse {
           cases: r.summary!.cases,
           attemptRate: attemptRate(r),
         }));
-      return ok({ suiteName: suite, points });
+      return ok({ suiteName: suite, variant: variant ?? null, points });
+    }
+    case "GET /matrices": {
+      if (!store.listMatrices) throw new ApiError(501, "This results store does not keep matrices.");
+      const limit = intParam(req.query, "limit", 1, 500) ?? 100;
+      return ok({ matrices: store.listMatrices({ suiteName: req.query.get("suite") || undefined, limit }) });
+    }
+    case "GET /matrices/:": {
+      if (!store.getMatrix) throw new ApiError(501, "This results store does not keep matrices.");
+      let m;
+      try {
+        m = store.getMatrix(parts[1] as string);
+      } catch (err) {
+        if (err instanceof ConfigError) throw new ApiError(400, err.message);
+        throw err;
+      }
+      if (!m) throw new ApiError(404, `No matrix matching "${parts[1]}".`);
+      try {
+        return ok({ matrix: buildMatrix(m.matrixId, loadMatrix(store, m), req.query.get("reference") || undefined) });
+      } catch (err) {
+        if (err instanceof ConfigError) throw new ApiError(400, err.message); // unknown reference
+        throw err;
+      }
     }
     case "GET /calibration": {
       const { listLabels } = labelsOf(store);
@@ -243,7 +279,7 @@ export function handleApi(ctx: ApiContext, req: ApiRequest): ApiResponse {
       return ok({ deleted });
     }
   }
-  const known = ["/suites", "/runs", "/runs/:", "/runs/:/cases/:", "/compare", "/trend", "/calibration", "/labels"];
+  const known = ["/suites", "/runs", "/runs/:", "/runs/:/cases/:", "/compare", "/trend", "/matrices", "/matrices/:", "/calibration", "/labels"];
   const shape = route.slice(route.indexOf(" ") + 1);
   if (known.includes(shape) || shape === "/") throw new ApiError(405, `${req.method} is not allowed here.`);
   throw new ApiError(404, `No API route ${req.method} ${API_PREFIX}${req.path}.`);

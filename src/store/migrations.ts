@@ -104,6 +104,15 @@ CREATE TABLE labels (
 CREATE INDEX idx_labels_run ON labels(run_id);
 `,
   },
+  {
+    version: 5,
+    description: "matrix runs: the matrix a run belongs to and its variant's name",
+    sql: `
+ALTER TABLE runs ADD COLUMN matrix_id TEXT;
+ALTER TABLE runs ADD COLUMN variant TEXT;
+CREATE INDEX idx_runs_matrix ON runs(matrix_id);
+`,
+  },
 ];
 
 export const LATEST_SCHEMA_VERSION = migrations[migrations.length - 1]?.version ?? 0;

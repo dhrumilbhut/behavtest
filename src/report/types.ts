@@ -6,6 +6,8 @@ export interface RunStartInfo {
   suiteName: string;
   /** e.g. `http → localhost:4000/pipeline` or `anthropic:claude-sonnet-5`. */
   pipelineLabel: string;
+  /** The variant's name, on runs of a matrix. */
+  variant?: string;
   judge?: string;
   caseIds: string[];
   caseCount: number;

@@ -5,6 +5,7 @@ import { calibrateCommand } from "./commands/calibrate.js";
 import { compareCommand } from "./commands/compare.js";
 import { exportCommand, importCommand } from "./commands/export.js";
 import { initCommand } from "./commands/init.js";
+import { matrixCommand } from "./commands/matrix.js";
 import { reportCommand } from "./commands/report.js";
 import { runsCommand } from "./commands/runs.js";
 import { showCommand } from "./commands/show.js";
@@ -63,6 +64,7 @@ export function buildProgram(): Command {
     .option("--tag <tag>", "only run cases with this tag (repeatable)", collect)
     .option("--case <id>", "only run this case id (repeatable)", collect)
     .option("--label <text>", "label this run, e.g. a prompt version")
+    .option("--variant <name>", "matrix suites: only run this variant (repeatable; default all)", collect)
     .option("--judge <provider:model>", "LLM judge model, e.g. anthropic:claude-sonnet-5")
     .option("--no-judge-check", "skip the one tiny call that checks the judge works before any case runs")
     .option("--no-trace", "do not store the steps pipelines report (keeps the database small)")
@@ -123,6 +125,27 @@ changed (or that only exist in one run, or errored) are listed but never counted
     .action((runs: string[], opts) => {
       process.exitCode = compareCommand(runs, opts);
     });
+
+  program
+    .command("matrix")
+    .description("Compare the variants of a matrix run side by side: pass rate with intervals, cost, latency, and each variant against a reference")
+    .argument("[matrix]", "matrix id or a unique prefix (default: the latest matrix)")
+    .option("--db <path>", "results database", ".regrade/results.db")
+    .option("--suite <name>", "with no matrix id: the latest matrix of this suite")
+    .option("--reference <variant>", "the variant the others are compared with (default: the first)")
+    .option("--list", "list matrices, newest first")
+    .option("--json <file>", "write the matrix as JSON")
+    .option("--md <file>", "write a Markdown summary (e.g. for a CI job summary)")
+    .option("--out <file>", "write a single-file HTML report")
+    .option("--no-color", "disable coloured output")
+    .addHelpText(
+      "after",
+      `
+A matrix runs one suite several ways: add "variants" to the suite (each changes the pipeline's config,
+e.g. the model or the prompt) and \`regrade run\` makes one run per variant. Every variant uses the
+same cases and the same judge, so their pass rates can be compared case by case.`,
+    )
+    .action((matrix: string | undefined, opts) => matrixCommand(matrix, opts));
 
   program
     .command("calibrate")
