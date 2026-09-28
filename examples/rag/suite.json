@@ -1,0 +1,39 @@
+{
+  "$schema": "https://unpkg.com/regrade/schema/suite.schema.json",
+  "name": "store-policies-rag",
+  "description": "The example RAG pipeline. Start it with: node examples/rag/server.mjs (add ?mode=degraded or ?mode=hallucinate to RAG_URL to see failures). faithfulness and contextRelevance need a judge: set OPENAI_API_KEY, or change defaults.judge.",
+  "defaults": { "judge": "openai:gpt-4.1-nano", "repeat": 1 },
+  "pipeline": {
+    "adapter": "http",
+    "config": { "url": "${RAG_URL:-http://localhost:4100/rag}" }
+  },
+  "cases": [
+    {
+      "id": "refund-time",
+      "input": "How long does a refund take?",
+      "expectedDocs": ["refunds"],
+      "scorers": ["retrieval", "faithfulness"],
+      "scorerConfig": { "retrieval": { "metric": "recall", "k": 3 } }
+    },
+    {
+      "id": "return-window",
+      "input": "Can I return a jacket after 40 days?",
+      "expectedDocs": ["returns"],
+      "scorers": ["retrieval", "faithfulness", "contextRelevance"],
+      "scorerConfig": { "faithfulness": { "mode": "claims" } }
+    },
+    {
+      "id": "ship-canada",
+      "input": "Do you ship to Canada?",
+      "expectedDocs": ["international"],
+      "scorers": ["retrieval", "faithfulness"]
+    },
+    {
+      "id": "cancel-order",
+      "input": "Can I cancel my order?",
+      "expectedDocs": ["cancellations"],
+      "scorers": ["retrieval", "faithfulness"],
+      "scorerConfig": { "retrieval": { "metric": "mrr", "min": 1 } }
+    }
+  ]
+}

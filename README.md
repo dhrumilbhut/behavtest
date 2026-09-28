@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/regrade.svg)](https://www.npmjs.com/package/regrade) [![CI](https://github.com/dhrumilbhut/regrade/actions/workflows/ci.yml/badge.svg)](https://github.com/dhrumilbhut/regrade/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Regrade is an open-source command-line tool and Node.js library for regression testing LLM applications.** It runs a suite of test cases through your real pipeline (an HTTP endpoint, an OpenAI-compatible or Anthropic model, or a TypeScript function), scores every answer with exact match, an LLM judge, latency and cost limits, or checks on the agent's tool calls, saves each run, and fails your CI build when a prompt, model or code change makes results worse. Because LLM output is random, it repeats cases and uses statistical tests to tell a real regression from noise.
+**Regrade is an open-source command-line tool and Node.js library for regression testing LLM applications.** It runs a suite of test cases through your real pipeline (an HTTP endpoint, an OpenAI-compatible or Anthropic model, or a TypeScript function), scores every answer with exact match, an LLM judge, latency and cost limits, checks on the agent's tool calls, or RAG checks on what was retrieved and whether the answer is grounded in it, saves each run, and fails your CI build when a prompt, model or code change makes results worse. Because LLM output is random, it repeats cases and uses statistical tests to tell a real regression from noise.
 
 **[See a live sample report →](https://dhrumilbhut.github.io/regrade/sample/)** (a healthy pipeline compared with a degraded one: which cases regressed, and is it real or noise?)
 
@@ -11,7 +11,8 @@
 | **What it is** | A CLI (`regrade`) and a TypeScript library for testing and comparing the behavior of LLM pipelines |
 | **Use it to** | Check a prompt or model change before shipping it, and block pull requests that make answers worse |
 | **Tests** | Any HTTP service (Python, Node, Go...), OpenAI and OpenAI-compatible APIs (Azure, Ollama, vLLM, OpenRouter), Anthropic Claude, or an in-process function |
-| **Scores with** | `exactMatch`, `llmJudge` (LLM-as-a-judge), `latencyCost`, `toolCalled`, `maxSteps`, or your own functions |
+| **Scores with** | `exactMatch`, `llmJudge` (LLM-as-a-judge), `latencyCost`, `toolCalled`, `maxSteps`, RAG scorers (`retrieval`, `faithfulness`, `contextRelevance`), or your own functions |
+| **Checks the judge** | `regrade calibrate` measures how often the LLM judge agrees with your own labels (Cohen's kappa) |
 | **Compares runs with** | Repeated attempts, Wilson intervals, Fisher's exact test and a paired permutation test |
 | **Needs** | Node.js 24 or newer. No server, no account, no telemetry: results go to one local SQLite file |
 | **License** | MIT |
@@ -23,7 +24,7 @@ npx regrade init --ts && npx regrade run regrade/suite.mts   # a working suite, 
 ## Contents
 
 - [When to use Regrade](#when-to-use-regrade) · [Quickstart](#quickstart) · [How-to guides](#how-to-guides) · [Concepts](#concepts)
-- Reference: [suite format](#suite-format) · [adapters](#adapters-what-to-test) · [scorers](#scorers) · [LLM judge](#the-llm-judge) · [code suites](#code-suites-typescript-or-javascript) · [traces](#traces-check-what-the-agent-did-not-just-what-it-said) · [repeats](#non-determinism-repeat-your-cases) · [compare](#compare-runs-what-regressed-and-is-it-real) · [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse) · [reports](#reports) · [exit codes and storage](#exit-codes-and-storage) · [cost](#cost) · [CLI](#cli-reference) · [library](#library-api-and-custom-scorers)
+- Reference: [suite format](#suite-format) · [adapters](#adapters-what-to-test) · [scorers](#scorers) · [LLM judge](#the-llm-judge) · [code suites](#code-suites-typescript-or-javascript) · [traces](#traces-check-what-the-agent-did-not-just-what-it-said) · [RAG](#rag-test-retrieval-and-grounded-answers) · [judge calibration](#judge-calibration-does-the-judge-agree-with-you) · [repeats](#non-determinism-repeat-your-cases) · [compare](#compare-runs-what-regressed-and-is-it-real) · [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse) · [reports](#reports) · [exit codes and storage](#exit-codes-and-storage) · [cost](#cost) · [CLI](#cli-reference) · [library](#library-api-and-custom-scorers)
 - [FAQ](#faq) · [For AI coding assistants](#for-ai-coding-assistants) · [Security and privacy](#security-and-privacy) · [Contributing](#contributing)
 
 ## When to use Regrade
@@ -34,6 +35,8 @@ Use Regrade when:
 - **You are switching models** (for example from GPT to Claude, or to a cheaper model) and need evidence that answers, latency and cost stay acceptable.
 - **You want a CI check** that fails a pull request when it breaks your LLM feature, the way unit tests do for code.
 - **Your agent calls tools**, and you need to test that it calls the right one with the right arguments, without looping.
+- **You run a RAG pipeline**, and need to know whether it still retrieves the right documents and answers only from them.
+- **You rely on an LLM judge**, and want evidence that it agrees with a human before you trust its scores.
 - **Your outputs are non-deterministic**, so a single pass/fail is a coin flip and you need repeated attempts and a verdict on whether a change is real.
 - **You want to stay vendor-neutral and local**: no hosted platform, no account, results in a file you own.
 
@@ -179,6 +182,33 @@ Return the agent's steps (from HTTP, or with `tracer()` in a function pipeline),
 
 See [traces](#traces-check-what-the-agent-did-not-just-what-it-said).
 
+### Test a RAG pipeline: retrieval and grounded answers
+
+Report the retrieved documents as a `retrieval` step (`output`: a list of `{ id, text }`, plain strings, or LangChain documents), list the ids each case should retrieve in `expectedDocs`, and combine the RAG scorers:
+
+```json
+{
+  "id": "refund-time",
+  "input": "How long does a refund take?",
+  "expectedDocs": ["refunds"],
+  "scorers": ["retrieval", "faithfulness", "contextRelevance"],
+  "scorerConfig": { "retrieval": { "metric": "recall", "k": 3 }, "faithfulness": { "mode": "claims" } }
+}
+```
+
+`retrieval` is deterministic (no model); `faithfulness` and `contextRelevance` use the judge. A complete, runnable example with a small store-policy corpus is in [`examples/rag`](https://github.com/dhrumilbhut/regrade/tree/main/examples/rag). See [RAG](#rag-test-retrieval-and-grounded-answers).
+
+### Check that the LLM judge agrees with you
+
+Label some judged answers yourself (Pass/Fail buttons in the HTML report, then **Export labels**), and measure the agreement:
+
+```bash
+regrade report <run> --out report.html        # label judged answers, export regrade-labels-<run>.jsonl
+regrade calibrate --labels regrade-labels-<run>.jsonl --min-kappa 0.6
+```
+
+See [judge calibration](#judge-calibration-does-the-judge-agree-with-you).
+
 ### Use an LLM as a judge
 
 Add `"llmJudge"` to a case's scorers, write a rubric in `scorerConfig.llmJudge.rubric`, and choose a judge model with `defaults.judge`, `--judge provider:model` or `REGRADE_JUDGE`. Use a different model from the one being tested. See [the LLM judge](#the-llm-judge).
@@ -204,6 +234,8 @@ Add `"latencyCost"` with `maxLatencyMs` and/or `maxCostUsd`. Cost comes from tok
 | **Run file** | A portable JSON copy of a run; **compact** run files hold only what comparisons need and are safe to commit |
 | **Baseline** | The run you compare against, usually a committed compact run file |
 | **Trace** | The steps an attempt took (LLM calls, tool calls, retrievals), reported by the pipeline |
+| **Expected docs** | The ids of the documents a RAG case should retrieve (`expectedDocs`), for the `retrieval` scorer |
+| **Label** | Your own pass/fail on a judged answer, used by `regrade calibrate` to measure the judge |
 | **Modified** | A case whose definition, scorer code or judge model changed between two runs; listed, never counted as a regression |
 
 ## Suite format
@@ -251,6 +283,7 @@ A suite is a JSON file. Add `"$schema"` for editor autocomplete and validation (
 | `cases[].id` | Unique and **stable across runs**: it is how future comparisons match cases. Letters, digits, `.`, `_`, `-`. |
 | `cases[].input` | A string, `{ "messages": [...] }` (chat history), or any object (sent as-is to HTTP pipelines; LLM adapters need `inputTemplate`). |
 | `cases[].expected` | Reference answer. Required by `exactMatch`; optional context for `llmJudge`. |
+| `cases[].expectedDocs` | Ids of the documents a correct retrieval returns, for the `retrieval` scorer. |
 | `cases[].scorers` | Names of scorers to run. `scorerConfig.<name>` holds that scorer's options. |
 | `cases[].tags` | Labels for filtering with `--tag`. |
 | `cases[].repeat` / `timeoutMs` | Per-case overrides. CLI flags beat case values, which beat `defaults`. |
@@ -304,6 +337,9 @@ Write the suite in TypeScript or JavaScript and give it `pipeline: { run: async 
 | `latencyCost` | Records latency and **fails** if `maxLatencyMs` or `maxCostUsd` is exceeded. With no thresholds it always passes. If `maxCostUsd` is set but the cost is unknown it reports an error, not a silent pass. |
 | `toolCalled` | Checks the pipeline's [trace](#traces-check-what-the-agent-did-not-just-what-it-said): was a tool called (with these arguments, this many times), or not called. |
 | `maxSteps` | Checks the trace: did the attempt finish within a step budget (optionally of one kind)? |
+| `retrieval` | [RAG](#rag-test-retrieval-and-grounded-answers): were the case's `expectedDocs` retrieved? `hit`, `recall`, `precision` or `mrr` at `k`. Deterministic. |
+| `faithfulness` | RAG, LLM judge: is the answer supported by the retrieved documents? One verdict, or claim by claim. |
+| `contextRelevance` | RAG, LLM judge: were the retrieved documents relevant to the question? |
 | *your own* | Any function in a [code suite](#code-suites-typescript-or-javascript), or a scorer registered through the [library](#library-api-and-custom-scorers). |
 
 ### The LLM judge
@@ -320,7 +356,7 @@ Judge scores are useful, but **they are not ground truth**. Studies find raw jud
 
 **Choosing a judge model.** Pick by measured cost per verdict, not list price: reasoning models can spend hundreds of hidden tokens on one verdict. In a small test (2026-09-23, two to four verdicts per model), `gpt-5-nano` (the lowest list price) used 376 to 888 output tokens per verdict, mostly hidden reasoning, and cost 5 to 12 times as much per verdict as `gpt-4.1-nano` or `gpt-6-luna`, which used 40 to 60.
 
-It is still a single LLM making a judgment. Use an exact or programmatic check where you can, and treat judge results as one signal. Calibrating judges against human labels is planned.
+It is still a single LLM making a judgment. Use an exact or programmatic check where you can, treat judge results as one signal, and [measure how often the judge agrees with you](#judge-calibration-does-the-judge-agree-with-you) before relying on it.
 
 ## Code suites: TypeScript or JavaScript
 
@@ -421,6 +457,63 @@ Your own scorers receive the full trace as `trace` in their arguments.
 **See it:** `regrade show <run> <case>` prints the step tree with durations (`--full` adds each step's input and output), and the HTML report has a collapsible trace with timing bars under each attempt. Run files include traces, except compact ones.
 
 **What is stored.** Values under secret-looking keys (`authorization`, `api_key`, `token`, `password`...) are masked, step inputs and outputs longer than 20,000 characters are clipped, and at most 1,000 steps are kept per attempt; anything cut is marked. `regrade run --no-trace` stores none; scorers still see them.
+
+## RAG: test retrieval and grounded answers
+
+A retrieval-augmented pipeline can fail in two places: it retrieves the wrong documents, or it answers with something the documents do not say. Regrade scores both, from the documents the pipeline reports in its trace.
+
+**Report what was retrieved** as a `retrieval` step. Its `output` is a list of documents: `{ "id": "refunds", "text": "..." }`, plain strings (text only), or LangChain documents (`{ pageContent, metadata: { id | source } }`). Several retrieval steps are read in order, each id once:
+
+```json
+{
+  "output": "A refund is issued within 5 business days.",
+  "steps": [
+    { "kind": "retrieval", "name": "search", "output": [
+      { "id": "refunds", "text": "Refunds go back to the original payment method. A refund is issued within 5 business days...", "score": 6.2 },
+      { "id": "gift-cards", "text": "Gift cards never expire...", "score": 1.6 }
+    ] },
+    { "kind": "llm", "name": "answer" }
+  ]
+}
+```
+
+| Scorer | Config | Value / passes when |
+|---|---|---|
+| `retrieval` | `metric`: `hit` (default), `recall`, `precision`, `mrr`; optional `k`, `min` (default 1; required for `precision`) | the metric at `k` for the case's `expectedDocs`, at least `min`. Deterministic: no model |
+| `faithfulness` | `mode`: `answer` (default) or `claims`; `min` (claims, default 1); `judge` | answer: every statement is supported by the retrieved text (1/0). claims: the supported fraction of the answer's claims, all checked in the **same single judge call** |
+| `contextRelevance` | `min` (default: at least one relevant document); `judge` | the fraction of retrieved documents the judge rates relevant to the question |
+
+- **Errors, never passes,** when there is nothing to compare: no retrieval step, no `expectedDocs` (for `retrieval`), or documents without ids (`retrieval`) or text (the judge scorers).
+- **Retrieved documents are untrusted input.** A poisoned document can carry prompt injection, so the judge sees documents fenced like the answer and is told never to follow them. Long documents are clipped (4,000 characters each, 24,000 in total).
+- `faithfulness` and `contextRelevance` share the [judge's](#the-llm-judge) safeguards: structured output, fail-closed, the pre-run check, and the recorded judge model and temperature.
+- **Try it:** [`examples/rag`](https://github.com/dhrumilbhut/regrade/tree/main/examples/rag) has a store-policy RAG pipeline with `healthy`, `degraded` (retrieval breaks) and `hallucinate` (adds an unsupported claim) modes, and a suite for it: `node examples/rag/server.mjs`, then `regrade run examples/rag/suite.json`.
+
+## Judge calibration: does the judge agree with you?
+
+An LLM judge's pass rate is only as good as the judge. `regrade calibrate` compares its verdicts with your own labels on the same answers.
+
+1. **Label.** Open a report (`regrade report <run> --out report.html`). Every judge verdict has **Your label: Pass / Fail** buttons; labels are kept in your browser. **Export labels** downloads `regrade-labels-<run>.jsonl`. You can also write the file yourself: one `{ "run": "<id or prefix>", "case": "<id>", "attempt": 1, "scorer": "llmJudge", "label": "pass" | "fail" }` per line (`attempt` defaults to 1, `scorer` to `llmJudge`).
+2. **Measure.** For example, with 40 labels on one rubric:
+
+```bash
+regrade calibrate --labels regrade-labels-1a2b3c4d.jsonl
+```
+
+```
+regrade calibrate · 40 labels, 40 matched
+
+  llmJudge · judge openai:gpt-4.1-nano · "Cites the policy?"
+    labels 40   agreement 90% [77%–96%]   kappa 0.80 [0.59, 0.95]  (almost perfect agreement)
+    judge passed 2 of 20 answers you failed (false pass 10%) · failed 2 of 20 you passed (false fail 10%)
+                 you: pass  you: fail
+    judge pass          18          2
+    judge fail           2         18
+```
+
+- **Per scorer, judge model and rubric:** a judge is calibrated for one rubric, not in general.
+- **Cohen's kappa** is agreement beyond chance (1 = perfect, 0 = chance); the interval is a bootstrap. The **false-pass rate** is how often the judge lets through an answer you would fail.
+- **Gate:** `--min-kappa 0.6` exits 1 unless every group has at least 30 labels and kappa at or above 0.6. Fewer than 30 labels is reported as too few, never as a pass.
+- Labels that match no stored verdict, labels on verdicts where the judge errored, and duplicates (the last one counts) are reported. `--json`, `--md`.
 
 ## Non-determinism: repeat your cases
 
@@ -635,6 +728,7 @@ regrade compare [base] [head] [options]            What regressed, improved, or 
 regrade report <run> [--against <base>] [--out <file>]   Single-file HTML report (runs are ids or run files)
 regrade export <run> [--out <file>] [--compact]    Write a run file (a baseline to commit, or to compare or import elsewhere)
 regrade import <file>                              Load a full run file into the database
+regrade calibrate --labels <file> [--min-kappa <k>] [--json <file>] [--md <file>]   How often the judge agrees with your labels
 regrade init [--dir <dir>] [--force] [--ts]        Scaffold an example suite (--ts: a code suite, no server needed)
 regrade schema [--out <file>]                      Print the suite JSON Schema
 ```
@@ -664,7 +758,7 @@ process.exitCode = outcome.exitCode;
 
 `score` receives `{ input, expected, output, config, meta: { latencyMs, costUsd, usage, ... }, trace, runtime }` and returns `{ pass, value, reasoning?, costUsd?, error?, metadata? }`. Return `error` (rather than `pass: false`) when you *couldn't* evaluate, so the attempt is recorded as errored. Custom adapters work the same way through `registerAdapter`. The adapter and scorer interfaces are the library's stable contracts and change only additively.
 
-Other exports include `compareRuns`, `regressionGate`, `renderHtmlReport`, `renderRunMarkdown`, `renderCompareMarkdown`, `buildRunFile`, `readRunFile`, `tracer`, `defineSuite` and the statistics helpers (`wilsonInterval`, `fisherExact`, `stratifiedPermutationTest`). Type definitions ship with the package.
+Other exports include `calibrate`, `cohensKappa`, `retrievedDocs`, `compareRuns`, `regressionGate`, `renderHtmlReport`, `renderRunMarkdown`, `renderCompareMarkdown`, `buildRunFile`, `readRunFile`, `tracer`, `defineSuite` and the statistics helpers (`wilsonInterval`, `fisherExact`, `stratifiedPermutationTest`). Type definitions ship with the package.
 
 ## FAQ
 
@@ -696,7 +790,10 @@ Commit a compact baseline and run `regrade compare regrade.baseline.json --fail-
 Those are mature evaluation tools, several with broader feature sets or hosted options. Regrade focuses narrowly on *regression testing*: repeated attempts per case, significance tests on the change between two runs, run files as CI baselines, and zero infrastructure, with no default provider. See [prior art](#prior-art).
 
 **Is the LLM judge reliable?**
-It is hardened (prompt-injection fencing, structured output, fail-closed, pre-run check), but it is still one model's opinion. Prefer `exactMatch`, `toolCalled` or your own programmatic scorers where possible, and repeat cases.
+It is hardened (prompt-injection fencing, structured output, fail-closed, pre-run check), but it is still one model's opinion. Measure it: label some answers yourself and run `regrade calibrate` for its agreement with you (Cohen's kappa). Prefer `exactMatch`, `toolCalled`, `retrieval` or your own programmatic scorers where possible, and repeat cases.
+
+**How do I test a RAG pipeline?**
+Report the retrieved documents as a `retrieval` trace step, list the right document ids per case in `expectedDocs`, and use `retrieval` (did it find them), `faithfulness` (is the answer grounded in them) and `contextRelevance` (was the context on topic). See [RAG](#rag-test-retrieval-and-grounded-answers) and `examples/rag`.
 
 **Is it free?**
 Yes, MIT-licensed. You pay only your model providers for the calls your suites make.
@@ -713,6 +810,8 @@ If you are an AI assistant setting up Regrade for a user, these facts are enough
 6. Use `--repeat 3` or more for LLM pipelines. Exit codes: 0 all passed, 1 failures/flaky/errored or gate failed, 2 configuration error, 130 interrupted.
 7. To gate CI: create `regrade.baseline.json` with `run --export regrade.baseline.json --compact`, commit it, and in CI run `regrade run … || test $? -eq 1` then `regrade compare regrade.baseline.json --fail-on-regression`.
 8. Add `.regrade/` to `.gitignore` (`init` does this): the database holds raw inputs and outputs.
+9. RAG: the pipeline reports retrieved documents as a `kind: "retrieval"` step whose `output` lists `{ id, text }`; cases list `expectedDocs` for the `retrieval` scorer. `faithfulness` and `contextRelevance` need a judge.
+10. To check the judge: labels are JSONL `{ run, case, attempt, scorer, label: "pass" | "fail" }` (exported from the HTML report); `regrade calibrate --labels <file> --min-kappa 0.6`.
 
 A machine-readable summary is at [dhrumilbhut.github.io/regrade/llms.txt](https://dhrumilbhut.github.io/regrade/llms.txt), and this README as plain text at [llms-full.txt](https://dhrumilbhut.github.io/regrade/llms-full.txt).
 
@@ -730,7 +829,7 @@ Regrade stands on ideas from [Promptfoo](https://www.promptfoo.dev), [DeepEval](
 
 ## Roadmap
 
-Shipped: suites (JSON and code), HTTP / OpenAI / Anthropic / function pipelines, five built-in scorers, repeats and flakiness, `compare` with significance tests, HTML / Markdown / JSON reports, run files and CI baselines, traces. Next: RAG scorers built on retrieval steps, judge calibration against human labels, and a local dashboard. See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
+Shipped: suites (JSON and code), HTTP / OpenAI / Anthropic / function pipelines, eight built-in scorers including RAG (`retrieval`, `faithfulness`, `contextRelevance`), repeats and flakiness, `compare` with significance tests, judge calibration against your labels, HTML / Markdown / JSON reports, run files and CI baselines, traces. Next: a local dashboard, a GitHub Action, matrix runs across models, turning production failures into test cases, and a Python client. See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ## Development
 

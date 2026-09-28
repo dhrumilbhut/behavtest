@@ -148,6 +148,8 @@ const DOC_SLUGS: Record<string, string> = {
   Scorers: "scorers",
   "Code suites: TypeScript or JavaScript": "code-suites",
   "Traces: check what the agent did, not just what it said": "traces",
+  "RAG: test retrieval and grounded answers": "rag",
+  "Judge calibration: does the judge agree with you?": "calibration",
   "Non-determinism: repeat your cases": "repeats",
   "Compare runs: what regressed, and is it real?": "compare",
   "Baselines and CI: fail the pull request that made things worse": "ci-baselines",

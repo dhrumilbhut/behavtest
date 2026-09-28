@@ -13,6 +13,7 @@ import {
   renderHtmlReport, renderRunMarkdown, runSuite, SqliteStore,
 } from "../dist/index.js";
 import pkg from "../package.json" with { type: "json" };
+import { answer as ragAnswer } from "../examples/rag/rag.mjs";
 
 const outDir = process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out") + 1] : "site";
 mkdirSync(outDir, { recursive: true });
@@ -32,6 +33,12 @@ const QA = {
   "Is Pluto classified as a planet?": ["No", "same"],
   "What is the speed of light in km/s?": ["299,792 km/s", "same"],
 };
+// store-policy questions answered by examples/rag, scored on what was retrieved
+const RAG = {
+  "How long does a refund take?": { id: "rag-refund-time", doc: "refunds", breaksInV2: true },
+  "Do you ship to Canada?": { id: "rag-ship-canada", doc: "international" },
+  "Can I cancel my order?": { id: "rag-cancel-order", doc: "cancellations" },
+};
 let version = "v1";
 const calls = new Map();
 const server = createServer((req, res) => {
@@ -39,6 +46,15 @@ const server = createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     const input = JSON.parse(body).input;
+    if (RAG[input]) {
+      // store-policy questions go to the example RAG pipeline; v2 breaks retrieval for one of them
+      const mode = version === "v2" && RAG[input].breaksInV2 ? "degraded" : "healthy";
+      setTimeout(() => {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(ragAnswer(input, { mode })));
+      }, 20);
+      return;
+    }
     const n = (calls.get(`${version}:${input}`) ?? 0) + 1;
     calls.set(`${version}:${input}`, n);
     const [correct, v2] = QA[input] ?? ["I don't know.", "same"];
@@ -65,7 +81,7 @@ const IDS = ["capital-of-france", "simple-math", "author-of-hamlet", "boiling-po
 const tags = { "Who wrote Hamlet?": ["trivia"], "How many days do customers have to request a refund?": ["policy"] };
 const suite = {
   name: "support-bot",
-  description: "Sample suite: the same 12 questions run against two versions of a pipeline.",
+  description: "Sample suite: the same 15 questions (3 answered by a RAG pipeline) run against two versions of a pipeline.",
   defaults: { repeat: 5, concurrency: 8 },
   pipeline: { adapter: "http", config: { url } },
   cases: Object.entries(QA).map(([question, [expected]], i) => ({
@@ -75,7 +91,14 @@ const suite = {
     tags: tags[question] ?? ["smoke"],
     scorers: ["exactMatch", "latencyCost"],
     scorerConfig: { latencyCost: { maxLatencyMs: 500 } },
-  })),
+  })).concat(Object.entries(RAG).map(([question, r]) => ({
+    id: r.id,
+    input: question,
+    expectedDocs: [r.doc],
+    tags: ["rag"],
+    scorers: ["retrieval"],
+    scorerConfig: { retrieval: { metric: "recall", k: 3 } },
+  }))),
 };
 
 const registry = createRegistry();
