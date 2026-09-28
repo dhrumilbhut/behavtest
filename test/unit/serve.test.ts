@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- API responses are untyped JSON, checked field by field */
 import { request } from "node:http";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AttemptRecord, RunRecord } from "../../src/core/types.js";

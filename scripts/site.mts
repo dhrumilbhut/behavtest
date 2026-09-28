@@ -154,6 +154,7 @@ const DOC_SLUGS: Record<string, string> = {
   "Compare runs: what regressed, and is it real?": "compare",
   "Baselines and CI: fail the pull request that made things worse": "ci-baselines",
   Reports: "reports",
+  "Dashboard: browse, compare and label runs": "dashboard",
   "Exit codes and storage": "exit-codes-and-storage",
   Cost: "cost",
   "CLI reference": "cli",
@@ -543,7 +544,7 @@ ${feature("check", "Score every answer", "Exact match, a prompt-injection-harden
 ${feature("stats", "Tell regressions from noise", "Repeat each case, then compare runs with Wilson intervals, Fisher's exact test and a case-stratified permutation test.", "docs/compare/")}
 ${feature("pr", "Fail the pull request", "Commit a compact baseline; CI compares every pull request against it and exits non-zero when quality drops.", "docs/ci-baselines/")}
 ${feature("trace", "Check what the agent did", "Store each run's tool calls and LLM steps, and test that the agent called the right tool without looping.", "docs/traces/")}
-${feature("local", "Zero infrastructure", "One CLI and one local SQLite file. No server, no account, no telemetry, no default provider. MIT licensed.", "docs/security/")}
+${feature("local", "Zero infrastructure", "One CLI, one local SQLite file, and a local dashboard to browse it. No hosted service, no account, no telemetry, no default provider. MIT licensed.", "docs/security/")}
 </div>
 </div></section>
 

@@ -6,19 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.5.0]: RAG scorers and judge calibration
+## [0.6.0]: RAG scorers, judge calibration and a local dashboard
 
-Test what a RAG pipeline retrieved and whether its answers stay grounded in it, and measure whether the LLM judge agrees with you.
+Test what a RAG pipeline retrieved and whether its answers stay grounded in it, measure whether the LLM judge agrees with you, and browse it all in a local dashboard. (0.5.0 was never published; its changes are included here.)
 
 ### Added
+- **`regrade serve`: a local dashboard** on the results database, one page served by Node's own HTTP server (no new dependencies). **Runs** lists every run (outcome, label, git commit, cases passed, attempt pass rate, flaky cases, cost), filterable by suite, with a **pass-rate trend chart** per suite (each run's attempt pass rate and 95% Wilson interval; hover, arrow keys, click to open). **Run** is the HTML report's drill-down, with traces loaded per case. **Compare** runs the full comparison between any two runs. **Calibration** shows each judge's agreement, kappa and confusion matrix live, with the verdicts where it disagreed with you. `--port` (default 4800), `--host`, `--open`, `--db`. Light and dark themes.
+- **Dashboard security:** listens on 127.0.0.1 by default; refuses requests whose `Host` is not localhost, an IP address or the configured host (DNS rebinding), refuses cross-site writes, serves a strict Content-Security-Policy with `nosniff` and no framing, and limits request sizes. A non-loopback `--host` prints a warning (there is no login).
+- **Labels are stored in the results database** (new `labels` table, schema version 4; existing databases upgrade automatically). Labelling a judged answer in the dashboard saves it immediately.
+- A versioned JSON API under `/api/v1` (runs, suites, one run, one case with its traces, compare, trend, calibration, labels).
 - **`retrieval` scorer** (RAG): compares the documents an attempt retrieved (its `retrieval` trace steps) with a case's new optional `expectedDocs`: `metric` `hit`, `recall`, `precision` or `mrr`, optional `k` and `min`. Deterministic, no model. Retrieved documents may be `{ id, text, score }`, plain strings, or LangChain-style `{ pageContent, metadata }`.
 - **`faithfulness` and `contextRelevance` scorers** (RAG, LLM judge): is the answer supported by the retrieved documents (`mode: "answer"` for one verdict, or `"claims"` to check each claim in the same single call, with `min`), and were the retrieved documents relevant to the question (per-document ratings, `min`). Retrieved documents are fenced as untrusted input like outputs; faithfulness never shows the judge the question (it judges support, not relevance), and document ids are listed outside the fenced data and enforced by the output schema. They share the judge machinery with `llmJudge`: structured output, fail-closed, temperature fallback, the pre-run check (now made once per judge per run, however many judge scorers use it) and the recorded judge model and temperature.
 - **`regrade calibrate --labels labels.jsonl`**: how often an LLM judge agrees with your own pass/fail labels, per scorer, judge model and rubric: agreement (Wilson interval), Cohen's kappa (bootstrap interval), false-pass and false-fail rates, a confusion matrix. Unmatched labels, labels on errored verdicts and duplicates are reported. `--min-kappa` fails CI unless every judge has at least 30 labels and kappa at or above the threshold. `--json`, `--md`.
 - **Label judge verdicts in the HTML report**: "Your label: Pass / Fail" buttons on every judged verdict, kept in the browser per run; **Export labels** downloads the JSONL that `regrade calibrate` reads (also Copy and a two-click Clear). The report stays one self-contained file.
 - **Example RAG pipeline** (`examples/rag/`): a fictional store's policy documents, a keyword retriever and a deterministic answerer, with `healthy`, `degraded` (retrieval breaks) and `hallucinate` (unsupported claim) modes; HTTP server or importable module.
 - Library: `retrievedDocs(trace)`; `Scorer.usesJudge` (additive: any judge-based scorer now makes the judge model part of a case's identity).
+- Library: `startDashboard`, `dashboardHandler`, `handleApi`, `reportData` (the data the HTML report embeds); optional `Store.setLabel`, `deleteLabel` and `listLabels`, and `Store.getAttempts(runId, { caseId })` (all additive).
 
 ### Changed
+- **`regrade calibrate` reads the labels saved in the database** when `--labels` is not given; `--labels <file>` still works.
+- The HTML report's script is split into a UI library shared with the dashboard and a small report app. The report is still one self-contained file with the same features.
 - **HTML report restyled** to match the documentation site: new light and dark palettes, larger type for the summary figures, accent-coloured filters and open cases, softer cards and code blocks. Same single self-contained file, same features. The report and the website now share the saved theme choice.
 - Documentation website: redesigned landing page with light and dark themes and a theme toggle.
 

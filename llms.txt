@@ -9,8 +9,9 @@ Key facts:
 - Suites are JSON files (schema: https://unpkg.com/regrade/schema/suite.schema.json) or TypeScript/JavaScript modules with inline scorers and in-process pipelines.
 - Adapters: `http` (POST `{"input": ...}`, expects `{"output": "..."}`), `openai` (also Azure, Ollama, vLLM, OpenRouter via `baseUrl`), `anthropic`.
 - Built-in scorers: `exactMatch`, `llmJudge`, `latencyCost`, `toolCalled`, `maxSteps`, and for RAG `retrieval` (deterministic: hit/recall/precision/MRR against a case's `expectedDocs`), `faithfulness` and `contextRelevance` (LLM judge).
-- Judge calibration: `regrade calibrate --labels labels.jsonl` measures how often the LLM judge agrees with human pass/fail labels (Cohen's kappa, false-pass rate); labels can be exported from the HTML report.
-- Commands: `run`, `compare`, `runs`, `show`, `report` (single-file HTML), `calibrate`, `export` / `import` (run files), `init`, `schema`.
+- Judge calibration: `regrade calibrate` measures how often the LLM judge agrees with human pass/fail labels (Cohen's kappa, false-pass rate); labels are saved from the dashboard, or read from a JSONL file with `--labels` (exported from the HTML report).
+- Dashboard: `regrade serve` opens a local web UI on the results database (127.0.0.1:4800): runs, pass-rate trends per suite, comparing any two runs, labelling judge verdicts, and judge calibration.
+- Commands: `run`, `compare`, `runs`, `show`, `report` (single-file HTML), `serve` (local dashboard), `calibrate`, `export` / `import` (run files), `init`, `schema`.
 - CI: commit a compact baseline (`regrade run suite.json --export regrade.baseline.json --compact`) and run `regrade compare regrade.baseline.json --fail-on-regression` in the pipeline.
 - Exit codes: 0 passed, 1 failed/flaky/errored or gate failed, 2 configuration error, 130 interrupted.
 - No telemetry, no hosted service, no default provider. Secrets are referenced as `${ENV_VAR}` and never stored.
@@ -26,6 +27,7 @@ Key facts:
 - [RAG](https://github.com/dhrumilbhut/regrade#rag-test-retrieval-and-grounded-answers): retrieval, faithfulness and context-relevance scorers
 - [Judge calibration](https://github.com/dhrumilbhut/regrade#judge-calibration-does-the-judge-agree-with-you): measuring the judge against your own labels
 - [Compare runs](https://github.com/dhrumilbhut/regrade#compare-runs-what-regressed-and-is-it-real): how regressions are separated from noise
+- [Dashboard](https://github.com/dhrumilbhut/regrade#dashboard-browse-compare-and-label-runs): `regrade serve`, the local web UI for browsing, comparing and labelling runs
 - [For AI coding assistants](https://github.com/dhrumilbhut/regrade#for-ai-coding-assistants): the rules for setting Regrade up correctly
 
 ## Examples

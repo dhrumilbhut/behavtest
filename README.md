@@ -13,8 +13,9 @@
 | **Tests** | Any HTTP service (Python, Node, Go...), OpenAI and OpenAI-compatible APIs (Azure, Ollama, vLLM, OpenRouter), Anthropic Claude, or an in-process function |
 | **Scores with** | `exactMatch`, `llmJudge` (LLM-as-a-judge), `latencyCost`, `toolCalled`, `maxSteps`, RAG scorers (`retrieval`, `faithfulness`, `contextRelevance`), or your own functions |
 | **Checks the judge** | `regrade calibrate` measures how often the LLM judge agrees with your own labels (Cohen's kappa) |
+| **Browse results** | `regrade serve`: a local dashboard with pass-rate trends, run comparison, labelling and judge calibration |
 | **Compares runs with** | Repeated attempts, Wilson intervals, Fisher's exact test and a paired permutation test |
-| **Needs** | Node.js 24 or newer. No server, no account, no telemetry: results go to one local SQLite file |
+| **Needs** | Node.js 24 or newer. No hosted service, no account, no telemetry: results go to one local SQLite file |
 | **License** | MIT |
 
 ```bash
@@ -24,7 +25,7 @@ npx regrade init --ts && npx regrade run regrade/suite.mts   # a working suite, 
 ## Contents
 
 - [When to use Regrade](#when-to-use-regrade) · [Quickstart](#quickstart) · [How-to guides](#how-to-guides) · [Concepts](#concepts)
-- Reference: [suite format](#suite-format) · [adapters](#adapters-what-to-test) · [scorers](#scorers) · [LLM judge](#the-llm-judge) · [code suites](#code-suites-typescript-or-javascript) · [traces](#traces-check-what-the-agent-did-not-just-what-it-said) · [RAG](#rag-test-retrieval-and-grounded-answers) · [judge calibration](#judge-calibration-does-the-judge-agree-with-you) · [repeats](#non-determinism-repeat-your-cases) · [compare](#compare-runs-what-regressed-and-is-it-real) · [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse) · [reports](#reports) · [exit codes and storage](#exit-codes-and-storage) · [cost](#cost) · [CLI](#cli-reference) · [library](#library-api-and-custom-scorers)
+- Reference: [suite format](#suite-format) · [adapters](#adapters-what-to-test) · [scorers](#scorers) · [LLM judge](#the-llm-judge) · [code suites](#code-suites-typescript-or-javascript) · [traces](#traces-check-what-the-agent-did-not-just-what-it-said) · [RAG](#rag-test-retrieval-and-grounded-answers) · [judge calibration](#judge-calibration-does-the-judge-agree-with-you) · [repeats](#non-determinism-repeat-your-cases) · [compare](#compare-runs-what-regressed-and-is-it-real) · [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse) · [reports](#reports) · [dashboard](#dashboard-browse-compare-and-label-runs) · [exit codes and storage](#exit-codes-and-storage) · [cost](#cost) · [CLI](#cli-reference) · [library](#library-api-and-custom-scorers)
 - [FAQ](#faq) · [For AI coding assistants](#for-ai-coding-assistants) · [Security and privacy](#security-and-privacy) · [Contributing](#contributing)
 
 ## When to use Regrade
@@ -62,7 +63,7 @@ npx regrade run regrade/suite.json
 ```
 
 ```
-regrade 0.5.0 · my-first-suite · http → localhost:4000/pipeline
+regrade 0.6.0 · my-first-suite · http → localhost:4000/pipeline
   2 cases · concurrency 4
 
   ✓ capital-of-france     177 ms  exactMatch ✓  latencyCost ✓
@@ -200,14 +201,22 @@ Report the retrieved documents as a `retrieval` step (`output`: a list of `{ id,
 
 ### Check that the LLM judge agrees with you
 
-Label some judged answers yourself (Pass/Fail buttons in the HTML report, then **Export labels**), and measure the agreement:
+Label some judged answers yourself (Pass/Fail buttons in the dashboard, saved to the results database), and measure the agreement:
 
 ```bash
-regrade report <run> --out report.html        # label judged answers, export regrade-labels-<run>.jsonl
-regrade calibrate --labels regrade-labels-<run>.jsonl --min-kappa 0.6
+regrade serve --open                  # open a run, mark judged answers Pass or Fail
+regrade calibrate --min-kappa 0.6     # reads the labels you saved
 ```
 
 See [judge calibration](#judge-calibration-does-the-judge-agree-with-you).
+
+### See trends and browse runs in a dashboard
+
+```bash
+regrade serve --open
+```
+
+A local web dashboard on the same database: pass rate per suite over time, every run with its cases, outputs, judge reasoning and traces, any two runs compared, and judge calibration from your labels. See [dashboard](#dashboard-browse-compare-and-label-runs).
 
 ### Use an LLM as a judge
 
@@ -493,11 +502,11 @@ A retrieval-augmented pipeline can fail in two places: it retrieves the wrong do
 
 An LLM judge's pass rate is only as good as the judge. `regrade calibrate` compares its verdicts with your own labels on the same answers.
 
-1. **Label.** Open a report (`regrade report <run> --out report.html`). Every judge verdict has **Your label: Pass / Fail** buttons; labels are kept in your browser. **Export labels** downloads `regrade-labels-<run>.jsonl`. You can also write the file yourself: one `{ "run": "<id or prefix>", "case": "<id>", "attempt": 1, "scorer": "llmJudge", "label": "pass" | "fail" }` per line (`attempt` defaults to 1, `scorer` to `llmJudge`).
-2. **Measure.** For example, with 40 labels on one rubric:
+1. **Label.** Run `regrade serve` and open a run: every judge verdict has **Your label: Pass / Fail** buttons, and each click is saved to the results database. Or, without a server, use the same buttons in an HTML report (`regrade report <run> --out report.html`), where labels stay in your browser until you **Export labels** to `regrade-labels-<run>.jsonl`. You can also write that file yourself: one `{ "run": "<id or prefix>", "case": "<id>", "attempt": 1, "scorer": "llmJudge", "label": "pass" | "fail" }` per line (`attempt` defaults to 1, `scorer` to `llmJudge`).
+2. **Measure.** `regrade calibrate` reads the labels saved in the database; `--labels <file>` reads a file instead. For example, with 40 labels on one rubric:
 
 ```bash
-regrade calibrate --labels regrade-labels-1a2b3c4d.jsonl
+regrade calibrate
 ```
 
 ```
@@ -515,6 +524,7 @@ regrade calibrate · 40 labels, 40 matched
 - **Cohen's kappa** is agreement beyond chance (1 = perfect, 0 = chance); the interval is a bootstrap. The **false-pass rate** is how often the judge lets through an answer you would fail.
 - **Gate:** `--min-kappa 0.6` exits 1 unless every group has at least 30 labels and kappa at or above 0.6. Fewer than 30 labels is reported as too few, never as a pass.
 - Labels that match no stored verdict, labels on verdicts where the judge errored, and duplicates (the last one counts) are reported. `--json`, `--md`.
+- The dashboard's **Calibration** page shows the same numbers live, and lists the verdicts where the judge disagreed with you, each linked to the answer.
 
 ## Non-determinism: repeat your cases
 
@@ -606,11 +616,11 @@ jobs:
       # Start your pipeline here if the suite calls it over HTTP.
       - name: Run the suite
         # Exit 1 (some cases failed) is fine here: the comparison decides. Exit 2 (bad config) still fails.
-        run: npx regrade@0.4 run regrade/suite.json --repeat 3 || test $? -eq 1
+        run: npx regrade@0.6 run regrade/suite.json --repeat 3 || test $? -eq 1
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       - name: Compare with the baseline
-        run: npx regrade@0.4 compare regrade.baseline.json --fail-on-regression --md regrade.md
+        run: npx regrade@0.6 compare regrade.baseline.json --fail-on-regression --md regrade.md
       - name: Job summary
         if: always()
         run: cat regrade.md >> "$GITHUB_STEP_SUMMARY"
@@ -641,7 +651,7 @@ jobs:
         with:
           node-version: 24
       - name: Run the suite
-        run: npx regrade@0.4 run regrade/suite.json --repeat 3 --export run.json --compact || test $? -eq 1
+        run: npx regrade@0.6 run regrade/suite.json --repeat 3 --export run.json --compact || test $? -eq 1
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       - name: Keep main's run as the baseline
@@ -657,7 +667,7 @@ jobs:
         run: |
           id=$(gh run list --workflow regrade.yml --branch main --event push --status success --limit 1 --json databaseId --jq '.[0].databaseId')
           gh run download "$id" --name regrade-baseline --dir baseline
-          npx regrade@0.4 compare baseline/run.json run.json --fail-on-regression --md regrade.md
+          npx regrade@0.6 compare baseline/run.json run.json --fail-on-regression --md regrade.md
           cat regrade.md >> "$GITHUB_STEP_SUMMARY"
 ```
 
@@ -670,6 +680,24 @@ A [live example](https://dhrumilbhut.github.io/regrade/sample/) is published fro
 - **JSON:** `--json` on `run` and `compare`, for scripts and dashboards.
 - **Console:** `regrade runs` lists saved runs; `regrade show <run> [case]` prints a run, or one case's input, outputs, scores and trace.
 
+## Dashboard: browse, compare and label runs
+
+```bash
+regrade serve                  # http://127.0.0.1:4800/
+regrade serve --open --port 5000 --db path/to/results.db
+```
+
+A local web dashboard on your results database, for looking around rather than gating CI. Runs still start from the CLI or CI; the dashboard reads what they saved.
+
+- **Runs:** every run with its outcome, label, git commit, cases passed, attempt pass rate, flaky cases and cost, filterable by suite, and a **pass-rate trend** per suite (each run's attempt pass rate with its 95% interval; hover or use the arrow keys for details, click to open a run).
+- **Run:** the same drill-down as the HTML report: summary, each case's input, attempts, outputs, scores, judge reasoning and traces (loaded when you open a case).
+- **Compare:** pick any two runs for the full comparison: what regressed, improved or is flaky, with the significance tests from [`regrade compare`](#compare-runs-what-regressed-and-is-it-real).
+- **Labels and calibration:** mark judged answers Pass or Fail; labels are saved to the database as you click, `regrade calibrate` reads them, and the **Calibration** page shows each judge's agreement, kappa, confusion matrix and the answers where it disagreed with you.
+
+It is one plain page with no external assets, in light and dark themes, served by Node's own HTTP server (no extra dependencies). The only thing it writes is your labels. Its JSON API (`/api/v1/runs`, `/api/v1/runs/<id>`, `/api/v1/compare?base=&head=`, `/api/v1/trend?suite=`, `/api/v1/calibration`, `/api/v1/labels`) is available to scripts on the same machine.
+
+**Security:** it listens on `127.0.0.1` only by default. It refuses requests whose `Host` is not `localhost`, an IP address or the host you started it with (so a web page cannot reach it through DNS rebinding), refuses label changes sent from other sites, and serves a strict Content-Security-Policy. There is no login: `--host 0.0.0.0` makes your runs (inputs, outputs, traces) readable by anyone who can reach the port, and Regrade prints a warning when you do it.
+
 ## Exit codes and storage
 
 | Exit code | Meaning |
@@ -680,7 +708,7 @@ A [live example](https://dhrumilbhut.github.io/regrade/sample/) is published fro
 | `130` | interrupted (Ctrl+C); attempts finished so far are saved and the run is marked `interrupted` |
 
 - **Errored vs failed:** *failed* means the pipeline answered and a scorer said no. *Errored* means Regrade couldn't get a verdict (pipeline down, timeout, judge unavailable). The console and the JSON report keep them apart.
-- **Where results are stored:** one SQLite file, `.regrade/results.db` (or `--db <path>`), with tables `runs`, `results` (one row per attempt, with snapshots of the input and expected values), `scores` and `traces`. Runs are written incrementally, so a crash keeps what completed, and older databases upgrade automatically.
+- **Where results are stored:** one SQLite file, `.regrade/results.db` (or `--db <path>`), with tables `runs`, `results` (one row per attempt, with snapshots of the input and expected values), `scores`, `traces` and `labels` (your pass/fail labels on judge verdicts). Runs are written incrementally, so a crash keeps what completed, and older databases upgrade automatically.
 - Nothing is written anywhere else unless you ask for a file (`--json`, `--md`, `--export`, `report --out`).
 
 ## Cost
@@ -729,7 +757,9 @@ regrade compare [base] [head] [options]            What regressed, improved, or 
 regrade report <run> [--against <base>] [--out <file>]   Single-file HTML report (runs are ids or run files)
 regrade export <run> [--out <file>] [--compact]    Write a run file (a baseline to commit, or to compare or import elsewhere)
 regrade import <file>                              Load a full run file into the database
-regrade calibrate --labels <file> [--min-kappa <k>] [--json <file>] [--md <file>]   How often the judge agrees with your labels
+regrade calibrate [--labels <file>] [--min-kappa <k>] [--json <file>] [--md <file>]   How often the judge agrees with your labels
+                                                   (default: the labels saved from the dashboard)
+regrade serve [--port <n>] [--host <host>] [--open] Local dashboard: runs, trends, compare, labels, calibration
 regrade init [--dir <dir>] [--force] [--ts]        Scaffold an example suite (--ts: a code suite, no server needed)
 regrade schema [--out <file>]                      Print the suite JSON Schema
 ```
@@ -796,6 +826,9 @@ It is hardened (prompt-injection fencing, structured output, fail-closed, pre-ru
 **How do I test a RAG pipeline?**
 Report the retrieved documents as a `retrieval` trace step, list the right document ids per case in `expectedDocs`, and use `retrieval` (did it find them), `faithfulness` (is the answer grounded in them) and `contextRelevance` (was the context on topic). See [RAG](#rag-test-retrieval-and-grounded-answers) and `examples/rag`.
 
+**Is there a UI?**
+Yes, a local one: `regrade serve` opens a dashboard on your results database (runs, pass-rate trends, comparisons, labelling and judge calibration), and `regrade report` writes a single-file HTML report you can share. Neither needs an account or a hosted service.
+
 **Is it free?**
 Yes, MIT-licensed. You pay only your model providers for the calls your suites make.
 
@@ -812,7 +845,8 @@ If you are an AI assistant setting up Regrade for a user, these facts are enough
 7. To gate CI: create `regrade.baseline.json` with `run --export regrade.baseline.json --compact`, commit it, and in CI run `regrade run … || test $? -eq 1` then `regrade compare regrade.baseline.json --fail-on-regression`.
 8. Add `.regrade/` to `.gitignore` (`init` does this): the database holds raw inputs and outputs.
 9. RAG: the pipeline reports retrieved documents as a `kind: "retrieval"` step whose `output` lists `{ id, text }`; cases list `expectedDocs` for the `retrieval` scorer. `faithfulness` and `contextRelevance` need a judge.
-10. To check the judge: labels are JSONL `{ run, case, attempt, scorer, label: "pass" | "fail" }` (exported from the HTML report); `regrade calibrate --labels <file> --min-kappa 0.6`.
+10. To check the judge: the user labels judged answers in `regrade serve` (saved to the database), then `regrade calibrate --min-kappa 0.6`. A labels file (JSONL `{ run, case, attempt, scorer, label: "pass" | "fail" }`, exported from the HTML report) works with `--labels <file>`.
+11. `regrade serve` is for a person to look at results; it is not needed in CI. It binds to 127.0.0.1; do not suggest `--host 0.0.0.0` on shared machines.
 
 A machine-readable summary is at [dhrumilbhut.github.io/regrade/llms.txt](https://dhrumilbhut.github.io/regrade/llms.txt), and this README as plain text at [llms-full.txt](https://dhrumilbhut.github.io/regrade/llms-full.txt).
 
@@ -821,6 +855,7 @@ A machine-readable summary is at [dhrumilbhut.github.io/regrade/llms.txt](https:
 - Suite files are safe to commit: secrets are referenced as `${ENV_VAR}`. Resolved values are never written to the database; hard-coded secrets are masked before storing (with a warning).
 - The database contains your raw inputs and outputs (and pipeline traces), which may be sensitive. `regrade init` git-ignores `.regrade/`. Values under secret-looking keys in traces are masked before storing; `--no-trace` stores none. Compact run files contain no inputs, outputs or traces.
 - Regrade contacts only the URLs and providers you configure. There is no telemetry and no update check.
+- `regrade serve` listens on 127.0.0.1 only by default, refuses unknown `Host` headers (DNS rebinding) and cross-site writes, and writes nothing but your labels. It has no login, so think before exposing it with `--host`.
 - Code suites are programs: only run suites you trust.
 - Releases are published from GitHub Actions with npm provenance. See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
@@ -830,7 +865,7 @@ Regrade stands on ideas from [Promptfoo](https://www.promptfoo.dev), [DeepEval](
 
 ## Roadmap
 
-Shipped: suites (JSON and code), HTTP / OpenAI / Anthropic / function pipelines, eight built-in scorers including RAG (`retrieval`, `faithfulness`, `contextRelevance`), repeats and flakiness, `compare` with significance tests, judge calibration against your labels, HTML / Markdown / JSON reports, run files and CI baselines, traces. Next: a local dashboard, a GitHub Action, matrix runs across models, turning production failures into test cases, and a Python client. See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
+Shipped: suites (JSON and code), HTTP / OpenAI / Anthropic / function pipelines, eight built-in scorers including RAG (`retrieval`, `faithfulness`, `contextRelevance`), repeats and flakiness, `compare` with significance tests, judge calibration against your labels, HTML / Markdown / JSON reports, a local dashboard (`regrade serve`), run files and CI baselines, traces. Next: a GitHub Action, matrix runs across models, turning production failures into test cases, and a Python client. See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ## Development
 
