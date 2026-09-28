@@ -65,7 +65,7 @@ npx regrade run regrade/suite.json
 ```
 
 ```
-regrade 0.7.0 · my-first-suite · http → localhost:4000/pipeline
+regrade 0.7.1 · my-first-suite · http → localhost:4000/pipeline
   2 cases · concurrency 4
 
   ✓ capital-of-france     177 ms  exactMatch ✓  latencyCost ✓

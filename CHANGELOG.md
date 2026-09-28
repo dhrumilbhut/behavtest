@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.1]: GitHub Marketplace listing
+
+### Fixed
+- The GitHub Action's description was longer than the 125 characters the GitHub Marketplace allows, so the Action could not be listed. It is shorter now, and a test checks the Marketplace limits. No other changes.
+
 ## [0.7.0]: GitHub Action and matrix runs
 
 Block the pull request that made results worse, and compare models or prompts side by side.
