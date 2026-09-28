@@ -31,6 +31,7 @@ export { llmJudge } from "./scorers/llmJudge.js";
 export { latencyCost } from "./scorers/latencyCost.js";
 export { toolCalled, maxSteps } from "./scorers/traceScorers.js";
 export { retrieval } from "./scorers/retrieval.js";
+export { faithfulness, contextRelevance } from "./scorers/ragJudge.js";
 export { tracer, prepareTrace, flattenTrace, retrievedDocs, TRACE_TEXT_LIMIT, TRACE_STEP_LIMIT } from "./core/trace.js";
 export type { Tracer, RetrievedDoc } from "./core/trace.js";
 export { httpAdapter } from "./adapters/httpAdapter.js";
