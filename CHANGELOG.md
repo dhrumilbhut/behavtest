@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.1]: documentation and website
+
 Documentation only: no change to the CLI or the library.
 
 ### Added
