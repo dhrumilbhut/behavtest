@@ -2,12 +2,14 @@
 // Builds the documentation website from README.md, so the site and the README can never disagree:
 // a landing page, one page per how-to guide and per reference section, the FAQ with FAQPage
 // structured data, sitemap.xml, robots.txt, llms.txt and llms-full.txt (llmstxt.org).
+// Pages that are not reference material (learning guides, integrations, comparisons) are Markdown
+// files in pages/, each starting with a front-matter block; they use the same renderer and layout.
 // The sample report is written separately into <out>/sample by scripts/sample-report.mjs.
 //
 //   node scripts/site.mts [--out site]
 //
 // No dependencies: README.md uses a small subset of Markdown, rendered here.
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -130,13 +132,50 @@ function describe(md: string, title: string): string {
 
 // ---- Split the README into pages ----------------------------------------------------------------
 
+type Kind = "home" | "guide" | "doc" | "learn" | "integration" | "comparison";
+
 interface Page {
-  path: string; // "" for the landing page, else "docs/x/" or "guides/x/"
+  path: string; // "" for the landing page, else e.g. "docs/x/", "guides/x/", "llm-testing/", "integrations/x/"
   title: string;
   heading: string;
   body: string; // Markdown, starting with the page's own heading
-  kind: "home" | "guide" | "doc";
+  kind: Kind;
+  description?: string; // pages/ only: the meta description (README pages derive theirs from the text)
+  order?: number; // pages/ only: position within its kind
 }
+
+/** Pages from pages/*.md (recursively). Each starts with a front-matter block of `key: value` lines. */
+export function loadContentPages(dir: string): Page[] {
+  if (!existsSync(dir)) return [];
+  const files: string[] = [];
+  (function walk(d: string) {
+    for (const name of readdirSync(d)) {
+      const f = join(d, name);
+      if (statSync(f).isDirectory()) walk(f);
+      else if (name.endsWith(".md")) files.push(f);
+    }
+  })(dir);
+  const kinds = new Set<Kind>(["learn", "integration", "comparison"]);
+  return files.map((file) => {
+    const text = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+    const m = /^---\n([\s\S]*?)\n---\n/.exec(text);
+    if (!m) throw new Error(`${file}: missing the front-matter block (---)`);
+    const meta = Object.fromEntries(m[1]!.split("\n").map((l) => /^(\w+):\s*(.*)$/.exec(l)).filter((x) => x).map((x) => [x![1], x![2]!.trim()]));
+    const body = text.slice(m[0].length).trim() + "\n";
+    const prose = body.replace(/^```[\s\S]*?^```/gm, ""); // "# " inside code blocks is not a heading
+    const heading = /^# (.+)$/m.exec(prose)?.[1]?.trim();
+    for (const key of ["path", "title", "description", "kind"]) if (!meta[key]) throw new Error(`${file}: front matter needs "${key}"`);
+    if (!heading) throw new Error(`${file}: the page needs one "# " heading`);
+    if ((prose.match(/^# /gm) ?? []).length !== 1) throw new Error(`${file}: exactly one "# " heading per page`);
+    if (!kinds.has(meta.kind as Kind)) throw new Error(`${file}: kind must be learn, integration or comparison`);
+    if (!/^[a-z0-9-]+(\/[a-z0-9-]+)*\/$/.test(meta.path!)) throw new Error(`${file}: path must look like "x/" or "x/y/"`);
+    if (meta.description!.length > 160) throw new Error(`${file}: description is ${meta.description!.length} characters (max 160)`);
+    return { path: meta.path!, title: meta.title!, heading, body, kind: meta.kind as Kind, description: meta.description, order: Number(meta.order ?? 100) };
+  }).sort((a, b) => (a.kind === b.kind ? a.order! - b.order! || a.path.localeCompare(b.path) : 0));
+}
+
+/** "../" once per path segment: the way back to the site root from a page. */
+const upFrom = (page: Page) => "../".repeat(page.path.split("/").filter(Boolean).length);
 
 /** Short URLs for the reference sections (the README's H2 headings). */
 const DOC_SLUGS: Record<string, string> = {
@@ -215,9 +254,16 @@ function anchorIndex(pages: Page[]): Map<string, Page> {
   return index;
 }
 
-function linker(page: Page, anchors: Map<string, Page>): LinkMapper {
-  const up = page.path === "" ? "" : "../../";
+function linker(page: Page, anchors: Map<string, Page>, paths: Set<string>): LinkMapper {
+  const up = upFrom(page);
   return (href) => {
+    if (href.startsWith("/")) {
+      // a link to another site page, written from the site root: "/llm-testing/" or "/docs/compare/#anchor"
+      const [path, anchor] = href.slice(1).split("#") as [string, string | undefined];
+      if (!paths.has(path)) throw new Error(`link ${href} on ${page.path || "the landing page"} points at no page`);
+      const url = path === page.path ? "" : up + path || "./";
+      return anchor ? `${url}#${anchor}` : url || "#";
+    }
     if (/^https?:|^mailto:/.test(href)) {
       if (href === `${SITE}/` || href === SITE) return up || "./";
       if (href.startsWith(`${SITE}/`)) return up + href.slice(SITE.length + 1);
@@ -439,13 +485,13 @@ function faqLd(md: string) {
 }
 
 function layout(page: Page, content: string, extraHead: string): string {
-  const up = page.path === "" ? "" : "../../";
+  const up = upFrom(page);
   const home = up || "./";
   const url = `${SITE}/${page.path}`;
   const description = page.kind === "home"
     ? "Behavioral regression testing for AI applications: run LLM app, agent and RAG test cases repeatedly, compare runs statistically, fail CI on real regressions."
-    : describe(page.body.replace(/^# .*$/m, ""), page.title);
-  const title = page.kind === "home" ? page.title : `${page.title} · BehavTest`;
+    : page.description ?? describe(page.body.replace(/^# .*$/m, ""), page.title);
+  const title = page.kind === "home" ? page.title : `${page.title} | BehavTest`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -473,6 +519,7 @@ ${extraHead}
 <a class="brand" href="${home}">${ICONS.logo}BehavTest</a>
 <nav class="menu" aria-label="Site">
 <a href="${up}docs/quickstart/">Quickstart</a>
+<a class="opt" href="${up}#learn">Learn</a>
 <a class="opt" href="${up}#how-to-guides">Guides</a>
 <a class="opt" href="${up}#reference">Reference</a>
 <a class="opt" href="${up}docs/faq/">FAQ</a>
@@ -496,8 +543,23 @@ ${content}
 `;
 }
 
+/** Where a page sits, for the breadcrumb trail and BreadcrumbList data: [label, path from the site root][]. */
+function trail(page: Page): [string, string][] {
+  const section: Record<Exclude<Kind, "home">, [string, string]> = {
+    guide: ["How-to guides", "#how-to-guides"],
+    doc: ["Reference", "#reference"],
+    learn: ["Learn", "#learn"],
+    integration: ["Integrations", "integrations/"],
+    comparison: ["Comparisons", "comparisons/"],
+  };
+  if (page.kind === "home") return [];
+  const s = section[page.kind];
+  return page.path === s[1] ? [["BehavTest", ""]] : [["BehavTest", ""], s];
+}
+
 function docPage(page: Page, body: string, pager: string): string {
-  const crumbs = `<p class="crumbs"><a href="../../">BehavTest</a> › ${page.kind === "guide" ? `<a href="../../#how-to-guides">How-to guides</a>` : `<a href="../../#reference">Reference</a>`}</p>`;
+  const up = upFrom(page);
+  const crumbs = `<p class="crumbs">${trail(page).map(([label, path]) => `<a href="${up}${path}">${esc(label)}</a>`).join(" › ")}</p>`;
   return `<main class="doc">\n${crumbs}\n${body}\n${pager}\n</main>`;
 }
 
@@ -506,6 +568,12 @@ const install = (cmd: string) => `<div class="install"><code>${esc(cmd)}</code><
 function landing(pages: Page[]): string {
   const guides = pages.filter((p) => p.kind === "guide");
   const docs = pages.filter((p) => p.kind === "doc");
+  const learn = pages.filter((p) => p.kind === "learn");
+  const integrations = pages.filter((p) => p.kind === "integration" && p.path !== "integrations/");
+  const comparisons = pages.filter((p) => p.kind === "comparison" && p.path !== "comparisons/");
+  const linkList = (list: Page[]) => `<ul class="links">${list.map((p) => `<li><a href="${p.path}">${esc(p.title)}</a></li>`).join("")}</ul>`;
+  const section = (id: string, eyebrow: string, h2: string, sub: string, list: Page[], more = "") =>
+    list.length ? `<section class="block" id="${id}"><div class="wrap">\n<p class="eyebrow">${eyebrow}</p>\n<h2>${h2}</h2>\n<p class="sub">${sub}</p>\n${linkList(list)}${more}\n</div></section>\n\n` : "";
   const feature = (icon: string, title: string, text: string, href: string) =>
     `<article class="feature"><span class="ico">${ICONS[icon]}</span><h3><a href="${href}" style="color:inherit;text-decoration:none">${title}</a></h3><p>${text}</p></article>`;
   return `<main>
@@ -585,7 +653,7 @@ behavtest compare \\
 </div>
 </div></section>
 
-<section class="block" id="how-to-guides"><div class="wrap">
+${section("learn", "Learn", "Testing AI applications, from first principles", "What regression testing means when outputs are nondeterministic, how it differs from evaluation, and how to do it in practice. Useful whether or not you use BehavTest.", learn)}${section("integrations", "Integrations", "Test the stack you already have", "Step-by-step setups for the providers and frameworks BehavTest works with, each with a working example.", integrations, `<p class="note"><a href="integrations/">All integrations</a></p>`)}${section("comparisons", "Comparisons", "How BehavTest relates to other tools", "Neutral, sourced comparisons with other LLM evaluation and testing tools, and when each approach fits.", comparisons, `<p class="note"><a href="comparisons/">All comparisons</a></p>`)}<section class="block" id="how-to-guides"><div class="wrap">
 <p class="eyebrow">How-to guides</p>
 <h2>Start from what you want to do</h2>
 <p class="sub">Short, task-first guides with copy-paste examples.</p>
@@ -607,13 +675,16 @@ ${install("npx behavtest init --ts && npx behavtest run behavtest/suite.mts")}
 </main>`;
 }
 
-export function buildSite(readme: string): Map<string, string> {
-  const pages = splitReadme(readme);
+export function buildSite(readme: string, content: Page[] = loadContentPages(join(root, "pages"))): Map<string, string> {
+  const pages = [...splitReadme(readme), ...content];
+  const paths = new Set(pages.map((p) => p.path).concat("sample/", "llms.txt"));
+  for (const p of content) if (pages.filter((q) => q.path === p.path).length > 1) throw new Error(`two pages use the path ${p.path}`);
   const anchors = anchorIndex(pages);
   const files = new Map<string, string>();
-  const ordered = pages.filter((p) => p.kind !== "home");
+  // previous/next links stay within a group: README pages (guides, then reference), or one kind of content page
+  const group = (p: Page) => (p.kind === "guide" || p.kind === "doc" ? "readme" : p.kind);
   for (const page of pages) {
-    const link = linker(page, anchors);
+    const link = linker(page, anchors, paths);
     let content: string;
     let head = "";
     let pager = "";
@@ -636,14 +707,22 @@ export function buildSite(readme: string): Map<string, string> {
       });
     } else {
       const body = renderMarkdown(page.body, link);
+      const ordered = pages.filter((p) => p.kind !== "home" && group(p) === group(page));
       const i = ordered.indexOf(page);
       const prev = ordered[i - 1];
       const next = ordered[i + 1];
-      pager = `<nav class="pager" aria-label="Pages">${prev ? `<a href="../../${prev.path}"><small>Previous</small>← ${esc(prev.title)}</a>` : ""}${next ? `<a class="next" href="../../${next.path}"><small>Next</small>${esc(next.title)} →</a>` : ""}</nav>`;
+      const up = upFrom(page);
+      pager = `<nav class="pager" aria-label="Pages">${prev ? `<a href="${up}${prev.path}"><small>Previous</small>← ${esc(prev.title)}</a>` : ""}${next ? `<a class="next" href="${up}${next.path}"><small>Next</small>${esc(next.title)} →</a>` : ""}</nav>`;
       content = docPage(page, body, pager);
-      head = page.path === "docs/faq/"
+      const crumbs = [...trail(page).filter(([, p]) => !p.startsWith("#")), [page.title, page.path] as [string, string]];
+      const breadcrumbs = {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: crumbs.map(([name, p], i) => ({ "@type": "ListItem", position: i + 1, name, item: `${SITE}/${p}` })),
+      };
+      head = (page.path === "docs/faq/"
         ? jsonLd(faqLd(page.body))
-        : jsonLd({ "@context": "https://schema.org", "@type": "TechArticle", headline: page.title, url: `${SITE}/${page.path}`, about: "BehavTest", isPartOf: `${SITE}/` });
+        : jsonLd({ "@context": "https://schema.org", "@type": "TechArticle", headline: page.title, description: page.description, url: `${SITE}/${page.path}`, about: "BehavTest", isPartOf: `${SITE}/` })) + jsonLd(breadcrumbs);
     }
     files.set(`${page.path}index.html`, layout(page, content, head));
   }

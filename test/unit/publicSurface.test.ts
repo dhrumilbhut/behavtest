@@ -76,13 +76,15 @@ describe("public surface", () => {
       for (const name of readdirSync(join(root, dir))) {
         const rel = `${dir}/${name}`;
         if (statSync(join(root, rel)).isDirectory()) walk(rel);
-        else if (/\.(ts|mjs|json|yml|tape)$/.test(name) && !rel.endsWith("publicSurface.test.ts") && !rel.endsWith("prices.json")) files.push(rel);
+        else if (/\.(ts|mjs|json|yml|tape|md)$/.test(name) && !rel.endsWith("publicSurface.test.ts") && !rel.endsWith("prices.json")) files.push(rel);
       }
     };
-    for (const d of ["src", "scripts", ".github", ".vhs"]) if (existsSync(join(root, d))) walk(d);
+    for (const d of ["src", "scripts", ".github", ".vhs", "pages", "examples"]) if (existsSync(join(root, d))) walk(d);
     const hits = files.flatMap((f) =>
       read(f)
         .split(/\r?\n/)
+        // pages/ link to the website's own /docs/<topic>/ pages, which are public
+        .map((line) => (f.startsWith("pages/") ? line.replace(/\]\(\/docs\/[a-z0-9-]+\/(#[a-z0-9-]+)?\)/g, "]()") : line))
         .filter((line) => PRIVATE.test(line))
         .map((line) => `${f}: ${line.trim().slice(0, 100)}`),
     );
