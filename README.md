@@ -29,8 +29,8 @@ Try it in one command, with no API key: `npx behavtest init --ts && npx behavtes
 ## Contents
 
 - [Why behavioral regression tests](#why-ai-applications-need-behavioral-regression-tests) · [How it works](#how-it-works) · [When to use BehavTest](#when-to-use-behavtest) · [Installation](#installation) · [Quickstart](#quickstart) · [How-to guides](#how-to-guides) · [Concepts](#concepts)
-- Reference: [suite format](#suite-format) · [adapters](#adapters-what-to-test) · [scorers](#scorers) · [LLM judge](#the-llm-judge) · [code suites](#code-suites-typescript-or-javascript) · [traces](#traces-check-what-the-agent-did-not-just-what-it-said) · [RAG](#rag-test-retrieval-and-grounded-answers) · [judge calibration](#judge-calibration-does-the-judge-agree-with-you) · [repeats](#non-determinism-repeat-your-cases) · [compare](#compare-runs-what-regressed-and-is-it-real) · [matrix runs](#matrix-runs-compare-models-and-prompts-side-by-side) · [GitHub Action](#github-action) · [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse) · [reports](#reports) · [dashboard](#dashboard-browse-compare-and-label-runs) · [exit codes and storage](#exit-codes-and-storage) · [cost](#cost) · [CLI](#cli-reference) · [library](#library-api-and-custom-scorers)
-- [Migrating from Regrade](#migrating-from-regrade) · [FAQ](#faq) · [For AI coding assistants](#for-ai-coding-assistants) · [Security and privacy](#security-and-privacy) · [Contributing](#contributing)
+- Reference: [configuration](#configuration) · [suite format](#suite-format) · [adapters](#adapters-what-to-test) · [scorers](#scorers) · [LLM judge](#the-llm-judge) · [code suites](#code-suites-typescript-or-javascript) · [traces](#traces-check-what-the-agent-did-not-just-what-it-said) · [RAG](#rag-test-retrieval-and-grounded-answers) · [judge calibration](#judge-calibration-does-the-judge-agree-with-you) · [repeats](#non-determinism-repeat-your-cases) · [compare](#compare-runs-what-regressed-and-is-it-real) · [matrix runs](#matrix-runs-compare-models-and-prompts-side-by-side) · [GitHub Action](#github-action) · [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse) · [reports](#reports) · [dashboard](#dashboard-browse-compare-and-label-runs) · [exit codes and storage](#exit-codes-and-storage) · [cost](#cost) · [CLI](#cli-reference) · [library](#library-api-and-custom-scorers)
+- [Troubleshooting](#troubleshooting) · [Migrating from Regrade](#migrating-from-regrade) · [FAQ](#faq) · [For AI coding assistants](#for-ai-coding-assistants) · [Security and privacy](#security-and-privacy) · [Contributing](#contributing)
 
 ## Why AI applications need behavioral regression tests
 
@@ -80,6 +80,24 @@ A test run moves through the same stages every time:
 3. **Save** every run, attempt, score and trace to a local SQLite file, or to a portable run file you commit as the baseline.
 4. **Compare** the candidate run with the baseline case by case: Wilson intervals on each pass rate, Fisher's exact test per case, and a case-stratified permutation test (with a bootstrap interval) on the overall change.
 5. **Decide:** a case that passes only sometimes is reported as flaky, a change within the noise is labelled not significant, and a real drop is a regression. `--fail-on-regression`, or the GitHub Action, fails the build.
+
+A minimal suite, for a support bot served over HTTP. Each case names the behavior its answer must show:
+
+```json
+{
+  "name": "support-bot",
+  "defaults": { "repeat": 5, "judge": "openai:gpt-4.1-nano" },
+  "pipeline": { "adapter": "http", "config": { "url": "${PIPELINE_URL:-http://localhost:4000/pipeline}" } },
+  "cases": [
+    { "id": "refund-window", "input": "Can I return an item after 40 days?",
+      "scorers": ["llmJudge"],
+      "scorerConfig": { "llmJudge": { "rubric": "Does the answer state the 30-day limit and avoid promising an exception?" } } },
+    { "id": "capital", "input": "What is the capital of France?", "expected": "Paris", "scorers": ["exactMatch"] }
+  ]
+}
+```
+
+`behavtest run suite.json` sends each input to the endpoint five times, scores every answer and saves the run; after a change, `behavtest compare` runs the statistics against the previous run (or a committed baseline file).
 
 What the decision looks like, from the [nondeterministic example](https://github.com/dhrumilbhut/behavtest/tree/main/examples/nondeterministic) after the bot's accuracy dropped from 90% to 60% (10 attempts per case; abridged; the overall p-value and interval are Monte Carlo estimates, so their last digits vary from run to run):
 
@@ -353,6 +371,26 @@ Add `"latencyCost"` with `maxLatencyMs` and/or `maxCostUsd`. Cost comes from tok
 | **Label** | Your own pass/fail on a judged answer, used by `behavtest calibrate` to measure the judge |
 | **Variant** / **matrix** | A variant changes the pipeline's config (a model, a prompt); a matrix is one run per variant of the same cases, compared side by side |
 | **Modified** | A case whose definition, scorer code or judge model changed between two runs; listed, never counted as a regression |
+
+## Configuration
+
+Everything about a run comes from four places: the suite file, per-case fields in it, command-line flags and environment variables. When two set the same thing, the more specific one wins:
+
+| Setting | Resolved in this order (first one set wins) | Built-in default |
+|---|---|---|
+| Attempts per case | `--repeat` → the case's `repeat` → suite `defaults.repeat` | 1 |
+| Timeout per attempt | `--timeout` → the case's `timeoutMs` → suite `defaults.timeoutMs` | 30,000 ms |
+| Attempts in flight | `--concurrency` → suite `defaults.concurrency` | 4 |
+| Judge model | the case's `scorerConfig.<scorer>.judge` → `--judge` → suite `defaults.judge` → `BEHAVTEST_JUDGE` | none (a judged case without one is a configuration error) |
+| Model prices | `--prices <file>` → suite `pricing` → the bundled price table | bundled table |
+| Results database | `--db <path>` | `.behavtest/results.db` |
+
+- **Secrets and URLs** go in the environment, referenced from `pipeline.config` as `${VAR}` or `${VAR:-default}`; a missing variable stops the run before anything is sent. Provider keys are read from `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` (or the variable named by `apiKeyEnv`), and `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` redirect the built-in adapters.
+- **Which cases run** is filtered with `--tag` and `--case` (both repeatable), and in a matrix suite `--variant`.
+- **What gets saved** is controlled with `--no-trace` (don't store pipeline steps), `--label` (a name for the run) and `--export` / `--compact` (also write a run file).
+- **Editor support:** add `"$schema": "https://unpkg.com/behavtest/schema/suite.schema.json"` to a JSON suite for autocomplete and validation; `behavtest schema` prints the same schema.
+
+The fields of a suite are in [suite format](#suite-format), every flag is in the [CLI reference](#cli-reference), and each adapter's options are in [adapters](#adapters-what-to-test).
 
 ## Suite format
 
@@ -769,6 +807,8 @@ Create the baseline once from a run you accept, and commit it: `npx behavtest ru
 
 Outputs: `result` (`pass`, `fail` or `error`), `regressed` (number of regressed cases), `run-id`, `report-path`.
 
+**Choosing a gate.** `regression` fails on any case whose pass rate dropped, which suits suites that are close to deterministic. If your pipeline is genuinely random, some cases will drop by chance on an unchanged branch: use `gate: significant` with enough attempts per case (5 or more) that a real drop can reach significance, or `gate: cases` with `min-pass-rate`. [LLM regression testing](https://dhrumilbhut.github.io/behavtest/llm-regression-testing/) shows the difference on real numbers.
+
 The Action runs the BehavTest release that matches its tag (`@v0` follows the latest 0.x release; pin `@v0.8.0` for a fixed version). API keys come from your workflow's `env`, as for any step.
 
 **Updating the baseline** is a reviewed change. A manual workflow that opens a pull request with a fresh baseline:
@@ -1024,6 +1064,57 @@ process.exitCode = outcome.exitCode;
 `score` receives `{ input, expected, output, config, meta: { latencyMs, costUsd, usage, ... }, trace, runtime }` and returns `{ pass, value, reasoning?, costUsd?, error?, metadata? }`. Return `error` (rather than `pass: false`) when you *couldn't* evaluate, so the attempt is recorded as errored. Custom adapters work the same way through `registerAdapter`. The adapter and scorer interfaces are the library's stable contracts and change only additively.
 
 Other exports include `calibrate`, `cohensKappa`, `retrievedDocs`, `compareRuns`, `regressionGate`, `renderHtmlReport`, `renderRunMarkdown`, `renderCompareMarkdown`, `buildRunFile`, `readRunFile`, `tracer`, `defineSuite` and the statistics helpers (`wilsonInterval`, `fisherExact`, `stratifiedPermutationTest`). Type definitions ship with the package.
+
+## Troubleshooting
+
+The messages below are quoted from BehavTest (without the backticks some of them contain); `…` stands for the part that names your file, case or variable.
+
+**`… is not set. The openai adapter reads its API key from the environment.`**
+Export the key in the shell or CI job that runs BehavTest (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or the variable named by `apiKeyEnv`). Keys are never read from the suite file.
+
+**`Missing environment variable referenced in pipeline.config: …`**
+The suite uses `${VAR}` and `VAR` is empty or unset. Set it, or give a default: `${PIPELINE_URL:-http://localhost:4000/pipeline}`.
+
+**`case "…" uses llmJudge but no judge model is configured.`**
+Judged scorers need a model: set `"defaults": { "judge": "openai:gpt-4.1-nano" }` in the suite, pass `--judge provider:model`, or export `BEHAVTEST_JUDGE`.
+
+**`The judge … does not work: …`**
+Before any case runs, BehavTest makes one tiny call to each judge. The message after the colon is the provider's answer: usually a wrong model name, a missing key, or a model without structured output. Fix the judge, or skip the check with `--no-judge-check`.
+
+**`Failed to load suite module …: … Node is treating this file as CommonJS …`**
+A `.ts` or `.js` suite is an ES module only when `package.json` says `"type": "module"`. Rename the suite to `.mts` / `.mjs` (what `behavtest init --ts` does), or set `"type": "module"`. Local files it imports need the same treatment.
+
+**`Failed to load suite module …: … If it imports another TypeScript file, write the extension in the import …`**
+Node's type stripping needs the extension in local imports (`import { answer } from "./agent.ts"`). If the suite imports values such as `tracer` or `defineSuite` from `behavtest`, install it in the project (`npm i -D behavtest`); `import type` needs no install.
+
+**`Cannot load …: this Node.js (…) cannot import TypeScript files.`**
+BehavTest needs Node.js 24 or newer. Upgrade Node, or write the suite as `.mjs` or `.json`.
+
+**`No results database at "…". Run behavtest run <suite> first, or pass --db <path>.`**
+`runs`, `show`, `compare`, `report`, `matrix`, `calibrate` and `serve` read the database a previous `run` wrote in the current directory. Run from the same directory, or point `--db` at it. In CI, compare against a committed run file instead: `behavtest compare behavtest.baseline.json`.
+
+**`There is no earlier run of "…" to compare run … against.`**
+`compare` without arguments needs two runs of the same suite (and the same variant). Run the suite again, or name both runs or files: `behavtest compare <base> <head>`.
+
+**`… is not a BehavTest run file (expected "kind": "behavtest.run").`**
+`compare` and `report --against` take run ids or run files written by `--export` or `behavtest export`. A `--json` report is not a run file: it has no case hashes. (Run files written by Regrade are still read.)
+
+**Every run exits 1, but nothing looks broken.**
+Exit 1 means at least one case failed, was flaky or errored. With a nondeterministic pipeline, flaky cases are expected: gate on the change instead (`behavtest compare … --fail-on-regression --significant-only`), or accept a pass rate (`--min-pass-rate 0.9`). See [deal with flaky, non-deterministic outputs](#deal-with-flaky-non-deterministic-outputs).
+
+**Cases show as `modified` instead of regressed or improved.**
+The case's definition, its scorer code or its judge model changed between the two runs, so their results aren't comparable. This is intended: update the baseline in the same change.
+
+**Attempts are `errored` with `network error calling …` or `HTTP 5xx from …`.**
+The pipeline could not answer, which is different from answering wrongly. Network errors, HTTP 429 and 5xx are retried (honoring `Retry-After`); raise `retries` in `pipeline.config`, check the service, or lower `--concurrency` if it is rate-limiting you.
+
+**`Using .regrade/results.db (from Regrade, BehavTest's former name).`**
+Not an error: results from before the rename are still used. Rename the `.regrade` folder to `.behavtest` to make the notice go away.
+
+**`Port 4800 is in use. Pick another with --port <n>.`**
+Another program (or another `behavtest serve`) is using the port: `behavtest serve --port 5000`.
+
+Still stuck? [Open an issue](https://github.com/dhrumilbhut/behavtest/issues) with the command, the full message and `behavtest --version`.
 
 ## Migrating from Regrade
 

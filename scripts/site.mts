@@ -155,7 +155,7 @@ export function loadContentPages(dir: string): Page[] {
       else if (name.endsWith(".md")) files.push(f);
     }
   })(dir);
-  const kinds = new Set<Kind>(["learn", "integration", "comparison"]);
+  const kinds = new Set<Kind>(["learn", "integration", "comparison", "doc"]);
   return files.map((file) => {
     const text = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
     const m = /^---\n([\s\S]*?)\n---\n/.exec(text);
@@ -167,7 +167,7 @@ export function loadContentPages(dir: string): Page[] {
     for (const key of ["path", "title", "description", "kind"]) if (!meta[key]) throw new Error(`${file}: front matter needs "${key}"`);
     if (!heading) throw new Error(`${file}: the page needs one "# " heading`);
     if ((prose.match(/^# /gm) ?? []).length !== 1) throw new Error(`${file}: exactly one "# " heading per page`);
-    if (!kinds.has(meta.kind as Kind)) throw new Error(`${file}: kind must be learn, integration or comparison`);
+    if (!kinds.has(meta.kind as Kind)) throw new Error(`${file}: kind must be learn, integration, comparison or doc`);
     if (!/^[a-z0-9-]+(\/[a-z0-9-]+)*\/$/.test(meta.path!)) throw new Error(`${file}: path must look like "x/" or "x/y/"`);
     if (meta.description!.length > 160) throw new Error(`${file}: description is ${meta.description!.length} characters (max 160)`);
     return { path: meta.path!, title: meta.title!, heading, body, kind: meta.kind as Kind, description: meta.description, order: Number(meta.order ?? 100) };
@@ -185,6 +185,7 @@ const DOC_SLUGS: Record<string, string> = {
   "When to use BehavTest": "when-to-use",
   Quickstart: "quickstart",
   Concepts: "concepts",
+  Configuration: "configuration",
   "Suite format": "suite-format",
   "Adapters: what to test": "adapters",
   Scorers: "scorers",
@@ -207,6 +208,7 @@ const DOC_SLUGS: Record<string, string> = {
   "For AI coding assistants": "for-ai-assistants",
   "Security and privacy": "security",
   "Prior art": "prior-art",
+  Troubleshooting: "troubleshooting",
   "Migrating from Regrade": "migrating-from-regrade",
   Roadmap: "roadmap",
 };
