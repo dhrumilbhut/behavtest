@@ -140,7 +140,9 @@ interface Page {
 
 /** Short URLs for the reference sections (the README's H2 headings). */
 const DOC_SLUGS: Record<string, string> = {
+  "Why AI applications need behavioral regression tests": "why-behavioral-regression-tests",
   "How it works": "how-it-works",
+  Installation: "installation",
   "When to use BehavTest": "when-to-use",
   Quickstart: "quickstart",
   Concepts: "concepts",

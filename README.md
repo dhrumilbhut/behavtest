@@ -4,7 +4,9 @@
 
 [![npm](https://img.shields.io/npm/v/behavtest.svg)](https://www.npmjs.com/package/behavtest) [![CI](https://github.com/dhrumilbhut/behavtest/actions/workflows/ci.yml/badge.svg)](https://github.com/dhrumilbhut/behavtest/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**BehavTest helps you detect meaningful behavioral regressions in nondeterministic AI applications.** It is an open-source command-line tool and Node.js library that runs your test cases through your real LLM app, AI agent or RAG pipeline (an HTTP endpoint, an OpenAI-compatible or Anthropic model, or a TypeScript function), repeats each case, scores every answer (exact match, an LLM judge, latency and cost limits, the agent's tool calls, or RAG retrieval and grounding), saves each run, and compares it with a baseline using statistical tests, so you can tell a real change in behavior from random variation and fail CI when a prompt, model or code change makes results worse.
+**BehavTest tells you whether a change made your AI application behave worse.** It is an open-source command-line tool and Node.js library for developers who ship LLM apps, AI agents and RAG pipelines and change their prompts, models or retrieval settings. It runs your test cases through the real application several times, scores every answer, and compares the results with a baseline using statistical tests. The repeats matter because model output is nondeterministic: the same input can pass on one call and fail on the next, so a single before-and-after run mostly measures luck. BehavTest reports which cases really regressed, which are merely flaky, and whether the overall change is bigger than the noise, and it can fail your CI build when it is.
+
+Try it in one command, with no API key: `npx behavtest init --ts && npx behavtest run behavtest/suite.mts`
 
 **Previously known as Regrade.** The npm package, CLI and repository are now `behavtest`; see [migrating from Regrade](#migrating-from-regrade).
 
@@ -24,19 +26,54 @@
 | **Needs** | Node.js 24 or newer. No hosted service, no account, no telemetry: results go to one local SQLite file |
 | **License** | MIT |
 
-```bash
-npx behavtest init --ts && npx behavtest run behavtest/suite.mts   # a working suite, no API key needed
-```
-
 ## Contents
 
-- [How it works](#how-it-works) · [When to use BehavTest](#when-to-use-behavtest) · [Quickstart](#quickstart) · [How-to guides](#how-to-guides) · [Concepts](#concepts)
+- [Why behavioral regression tests](#why-ai-applications-need-behavioral-regression-tests) · [How it works](#how-it-works) · [When to use BehavTest](#when-to-use-behavtest) · [Installation](#installation) · [Quickstart](#quickstart) · [How-to guides](#how-to-guides) · [Concepts](#concepts)
 - Reference: [suite format](#suite-format) · [adapters](#adapters-what-to-test) · [scorers](#scorers) · [LLM judge](#the-llm-judge) · [code suites](#code-suites-typescript-or-javascript) · [traces](#traces-check-what-the-agent-did-not-just-what-it-said) · [RAG](#rag-test-retrieval-and-grounded-answers) · [judge calibration](#judge-calibration-does-the-judge-agree-with-you) · [repeats](#non-determinism-repeat-your-cases) · [compare](#compare-runs-what-regressed-and-is-it-real) · [matrix runs](#matrix-runs-compare-models-and-prompts-side-by-side) · [GitHub Action](#github-action) · [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse) · [reports](#reports) · [dashboard](#dashboard-browse-compare-and-label-runs) · [exit codes and storage](#exit-codes-and-storage) · [cost](#cost) · [CLI](#cli-reference) · [library](#library-api-and-custom-scorers)
 - [Migrating from Regrade](#migrating-from-regrade) · [FAQ](#faq) · [For AI coding assistants](#for-ai-coding-assistants) · [Security and privacy](#security-and-privacy) · [Contributing](#contributing)
 
+## Why AI applications need behavioral regression tests
+
+### What problem does BehavTest solve?
+
+You change a prompt, swap a model or tune retrieval, and something that used to work stops working: the bot no longer states the refund window, the agent calls the wrong tool, the RAG pipeline answers from the wrong document. Nothing crashes, so ordinary tests stay green, and you find out when a user complains. BehavTest turns "did this change make the application behave worse?" into a test you run before merging: the same cases, run the same way, compared with a known-good baseline.
+
+### Why single runs and snapshots are not enough
+
+Traditional regression tests assume the same input gives the same output. LLM applications break that assumption twice:
+
+- **The exact wording changes on every call**, so a snapshot of the output fails on harmless rephrasing. BehavTest scores *behavior* instead (does the answer state the fact, call the right tool, stay grounded in the retrieved documents?), with deterministic checks where possible and an LLM judge where not.
+- **Even the behavior is random.** A case can pass on one call and fail on the next. In the bundled [nondeterministic example](https://github.com/dhrumilbhut/behavtest/tree/main/examples/nondeterministic), a bot that is right 90% of the time was run twice with nothing changed: one case went from 10/10 to 7/10, another from 7/10 to 10/10. Compare single runs and you would chase that noise.
+
+So BehavTest repeats each case, treats its behavior as a pass rate, and asks whether the rate moved by more than the noise. On that same example, the unchanged bot scored 85% then 81% (overall change p ≈ 0.67: not significant), while a bot whose accuracy really dropped to 60% scored 56% (p < 0.001: a significant regression).
+
+### Who it is for
+
+Developers and small teams who ship an LLM feature (a support bot, RAG search, an agent) and want a local, vendor-neutral check they can run on every change and in CI. It is not a hosted evaluation platform or production monitoring; see [prior art](#prior-art) for tools that are.
+
 ## How it works
 
-AI applications are nondeterministic: the same input can give a different answer on every call. A prompt tweak, a model swap or a new retrieval setting changes how the application behaves, but comparing one run before the change with one run after it mostly measures luck. BehavTest treats each test case's behavior as a pass rate over repeated attempts, and tests whether that rate really moved:
+A test run moves through the same stages every time:
+
+```text
+ Test definition      suite: cases, scorers, pipeline (JSON or TypeScript)
+        |
+ Execution            each case sent to your application: HTTP, OpenAI, Anthropic or a function
+        |
+ Repeated evaluation  --repeat N attempts per case
+        |
+ Result collection    every attempt, score and trace saved (SQLite, or a portable run file)
+        |
+ Behavioral scoring   scorers pass or fail each attempt; each case gets a verdict
+        |             (passed, failed, flaky, errored)
+        |
+ Statistical analysis compare with the baseline: per-case pass rates with Wilson intervals and
+        |             Fisher's exact test; overall change with a case-stratified permutation test
+        |
+ Regression decision  regressed / improved / flaky / not significant, per case and overall
+        |
+ Test result          report + exit code (0 passed, 1 regression or failure, 2 configuration error)
+```
 
 1. **Run** every test case through your real pipeline several times (`--repeat`), before and after a change.
 2. **Score** every attempt: exact match, an LLM judge, latency and cost limits, the tool calls the agent made, or what a RAG pipeline retrieved and whether the answer is grounded in it.
@@ -44,7 +81,19 @@ AI applications are nondeterministic: the same input can give a different answer
 4. **Compare** the candidate run with the baseline case by case: Wilson intervals on each pass rate, Fisher's exact test per case, and a case-stratified permutation test (with a bootstrap interval) on the overall change.
 5. **Decide:** a case that passes only sometimes is reported as flaky, a change within the noise is labelled not significant, and a real drop is a regression. `--fail-on-regression`, or the GitHub Action, fails the build.
 
-Cases whose definition, scorer or judge changed between the two runs are reported as `modified` and never counted as regressions, so changing a test is not mistaken for a change in behavior.
+What the decision looks like, from the [nondeterministic example](https://github.com/dhrumilbhut/behavtest/tree/main/examples/nondeterministic) after the bot's accuracy dropped from 90% to 60% (10 attempts per case; abridged; the overall p-value and interval are Monte Carlo estimates, so their last digits vary from run to run):
+
+```
+behavtest compare · support-bot
+  ✗ regressed shipping-time 10/10 → 5/10 100% → 50%  p=0.033 significant
+  ✗ regressed support-email 9/10 → 5/10 90% → 50%  p=0.141
+      not statistically significant at this sample size
+  ...
+  attempt pass rate  85% [76%–91%] → 56% [45%–67%]  (8 comparable cases; descriptive)
+  overall change     mean per case -28.7 pts, 95% CI [-41.3 pts, -16.3 pts], p=<0.0001 → significant regression
+```
+
+Each case on its own has only 10 attempts per side, so most per-case drops are "not significant"; the overall test pools the evidence across cases and is sure. Cases whose definition, scorer or judge changed between the two runs are reported as `modified` and never counted as regressions, so changing a test is not mistaken for a change in behavior. The details: [compare runs](#compare-runs-what-regressed-and-is-it-real).
 
 ## When to use BehavTest
 
@@ -61,9 +110,21 @@ Use BehavTest when:
 
 Something else may fit better if you need a hosted evaluation platform with a team UI, production observability and tracing of live traffic, or an extensive library of ready-made RAG metrics today. See [prior art](#prior-art).
 
+## Installation
+
+BehavTest needs **Node.js 24 or newer** (`node --version`). It runs on Linux, macOS and Windows.
+
+```bash
+npx behavtest --version          # run it without installing
+npm install --global behavtest   # or install the CLI globally
+npm install --save-dev behavtest # or add it to a project (needed only to import tracer / defineSuite)
+```
+
+Your application does not have to be written in JavaScript: BehavTest calls it over HTTP, or calls OpenAI-compatible and Anthropic models directly. Provider keys are read from `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` only when a suite uses those providers or the LLM judge.
+
 ## Quickstart
 
-Requires **Node.js 24 or newer**. Use `npx behavtest`, or install it: `npm install --global behavtest` (or `npm i -D behavtest` in a project).
+Requires **Node.js 24 or newer** (see [installation](#installation)). Every command below also works with `npx behavtest`.
 
 ### 1. Try it with no API key
 

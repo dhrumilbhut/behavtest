@@ -4,9 +4,11 @@
   "description": "Behavioral regression testing for AI applications: run test cases repeatedly through your LLM app, AI agent or RAG pipeline, score every answer, and use statistics to tell a real regression from noise. Vendor-neutral, local, no infrastructure. Previously named Regrade.",
   "keywords": [
     "behavioral-testing",
+    "behavioral-regression-testing",
     "regression-testing",
     "ai-testing",
     "ai-regression-testing",
+    "ai",
     "llm",
     "llm-testing",
     "llm-evaluation",
@@ -33,7 +35,7 @@
     "type": "git",
     "url": "git+https://github.com/dhrumilbhut/behavtest.git"
   },
-  "homepage": "https://github.com/dhrumilbhut/behavtest#readme",
+  "homepage": "https://dhrumilbhut.github.io/behavtest/",
   "bugs": {
     "url": "https://github.com/dhrumilbhut/behavtest/issues"
   },
