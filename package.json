@@ -1,6 +1,6 @@
 {
   "name": "behavtest",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Behavioral regression testing for AI applications: run test cases repeatedly through your LLM app, AI agent or RAG pipeline, score every answer, and use statistics to tell a real regression from noise. Vendor-neutral, local, no infrastructure. Previously named Regrade.",
   "keywords": [
     "behavioral-testing",

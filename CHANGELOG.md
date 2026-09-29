@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## Rename: Regrade → BehavTest
+## [0.8.0]: Rename: Regrade → BehavTest
 
 Regrade has been renamed to **BehavTest**. The package now focuses on behavioral regression testing for AI applications: detecting meaningful changes in how a nondeterministic LLM app, AI agent or RAG pipeline behaves, by running test cases repeatedly and analyzing the results statistically. It is the same tool: commands, options, the suite format, scorers and statistics are unchanged.
 

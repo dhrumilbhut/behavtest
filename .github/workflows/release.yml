@@ -4,7 +4,11 @@ name: Release
 # (GitHub OIDC): no npm token is stored anywhere.
 #
 # One-time setup on npmjs.com: package settings -> Trusted Publisher -> GitHub Actions,
-# with this repository and workflow file (release.yml). Then push a tag like v0.1.0.
+# with this repository and workflow file (release.yml), or from the CLI (npm 11.15+):
+#   npm trust github behavtest --file release.yml --repo dhrumilbhut/behavtest --allow-publish
+# A trusted publisher can only be added to a package that already exists, so a new package
+# name needs one manual first publish (a placeholder version) before this workflow can publish.
+# Then push a tag like v0.1.0.
 
 on:
   push:
