@@ -84,7 +84,7 @@ describe("public surface", () => {
       read(f)
         .split(/\r?\n/)
         // pages/ link to the website's own /docs/<topic>/ pages, which are public
-        .map((line) => (f.startsWith("pages/") ? line.replace(/\]\(\/docs\/[a-z0-9-]+\/(#[a-z0-9-]+)?\)/g, "]()") : line))
+        .map((line) => (f.startsWith("pages/") ? line.replace(/\]\(\/docs\/[a-z0-9-]+\/(#[a-z0-9-]+)?\)/g, "]()").replace(/^path: docs\/[a-z0-9-]+\/$/, "") : line))
         .filter((line) => PRIVATE.test(line))
         .map((line) => `${f}: ${line.trim().slice(0, 100)}`),
     );
