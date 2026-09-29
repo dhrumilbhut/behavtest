@@ -106,3 +106,4 @@ BehavTest covers the regression layer and part of the evaluation layer: it runs 
 
 - [LLM regression testing](/llm-regression-testing/) · [AI application testing](/ai-application-testing/) · [LLM evaluation](/llm-evaluation/)
 - BehavTest reference: [concepts](/docs/concepts/), [scorers](/docs/scorers/), [exit codes and storage](/docs/exit-codes-and-storage/)
+- [Integrations](/integrations/) and [comparisons with other LLM testing tools](/comparisons/)

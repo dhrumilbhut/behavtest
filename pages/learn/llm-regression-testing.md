@@ -60,7 +60,7 @@ A minimal suite that tests a prompt on an OpenAI model:
 }
 ```
 
-Your application doesn't need to be JavaScript: BehavTest can also call any HTTP endpoint, or a function in a TypeScript suite. See [adapters](/docs/adapters/).
+Your application doesn't need to be JavaScript: BehavTest can also call any HTTP endpoint, or a function in a TypeScript suite. See [adapters](/docs/adapters/) and the [integrations](/integrations/) for OpenAI, Anthropic, Ollama, FastAPI, LangChain and the Vercel AI SDK.
 
 ## Step 2: record a baseline
 
@@ -152,4 +152,4 @@ Any other CI system can run the same two commands (`behavtest run`, then `behavt
 
 - [Behavioral regression testing](/behavioral-regression-testing/): the concept, from first principles.
 - [LLM evaluation](/llm-evaluation/): measuring quality versus detecting regressions.
-- [How BehavTest works](/docs/how-it-works/) · [Quickstart](/docs/quickstart/) · [GitHub Action](/docs/github-action/)
+- [How BehavTest works](/docs/how-it-works/) · [Quickstart](/docs/quickstart/) · [GitHub Action](/docs/github-action/) · [Statistical testing](/docs/statistics/) · [Troubleshooting](/docs/troubleshooting/)

@@ -79,7 +79,7 @@ An application can score 72% on an evaluation and pass its regression tests ever
 
 ## Where BehavTest fits
 
-BehavTest is built for offline, application-level **regression testing**, and does the evaluation work that requires: it runs your cases through your application, scores them with deterministic checks, trace checks, RAG scorers or an LLM judge (hardened against prompt injection, with structured verdicts and a pre-run check), reports pass rates with confidence intervals, and calibrates the judge against your labels. It is **not** a replacement for every evaluation framework: it has no benchmark datasets, a small set of built-in scorers rather than a large metric library, no online evaluation of production traffic, and no hosted team workspace. If you need those, see [prior art](/docs/prior-art/).
+BehavTest is built for offline, application-level **regression testing**, and does the evaluation work that requires: it runs your cases through your application, scores them with deterministic checks, trace checks, RAG scorers or an LLM judge (hardened against prompt injection, with structured verdicts and a pre-run check), reports pass rates with confidence intervals, and calibrates the judge against your labels. It is **not** a replacement for every evaluation framework: it has no benchmark datasets, a small set of built-in scorers rather than a large metric library, no online evaluation of production traffic, and no hosted team workspace. If you need those, see [prior art](/docs/prior-art/) and the [comparisons with Promptfoo, DeepEval, Ragas and LangSmith](/comparisons/).
 
 ## Further reading
 

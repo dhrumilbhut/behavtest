@@ -64,7 +64,8 @@ describe("public surface", () => {
   it.each(["README.md", "CHANGELOG.md", "SECURITY.md"])("%s does not mention or link to the private docs", (file) => {
     const hits = read(file)
       .split(/\r?\n/)
-      .map((line, i) => ({ line, n: i + 1 }))
+      // the documentation website's own pages (…/behavtest/docs/<topic>/) are public
+      .map((line, i) => ({ line: line.replace(/https:\/\/dhrumilbhut\.github\.io\/behavtest\/docs\/[a-z0-9-]+\//g, ""), n: i + 1 }))
       .filter(({ line }) => PRIVATE.test(line))
       .map(({ line, n }) => `${file}:${n}: ${line.slice(0, 100)}`);
     expect(hits).toEqual([]);

@@ -30,7 +30,7 @@ Try it in one command, with no API key: `npx behavtest init --ts && npx behavtes
 
 - [Why behavioral regression tests](#why-ai-applications-need-behavioral-regression-tests) · [How it works](#how-it-works) · [When to use BehavTest](#when-to-use-behavtest) · [Installation](#installation) · [Quickstart](#quickstart) · [How-to guides](#how-to-guides) · [Concepts](#concepts)
 - Reference: [configuration](#configuration) · [suite format](#suite-format) · [adapters](#adapters-what-to-test) · [scorers](#scorers) · [LLM judge](#the-llm-judge) · [code suites](#code-suites-typescript-or-javascript) · [traces](#traces-check-what-the-agent-did-not-just-what-it-said) · [RAG](#rag-test-retrieval-and-grounded-answers) · [judge calibration](#judge-calibration-does-the-judge-agree-with-you) · [repeats](#non-determinism-repeat-your-cases) · [compare](#compare-runs-what-regressed-and-is-it-real) · [matrix runs](#matrix-runs-compare-models-and-prompts-side-by-side) · [GitHub Action](#github-action) · [baselines and CI](#baselines-and-ci-fail-the-pull-request-that-made-things-worse) · [reports](#reports) · [dashboard](#dashboard-browse-compare-and-label-runs) · [exit codes and storage](#exit-codes-and-storage) · [cost](#cost) · [CLI](#cli-reference) · [library](#library-api-and-custom-scorers)
-- [Troubleshooting](#troubleshooting) · [Migrating from Regrade](#migrating-from-regrade) · [FAQ](#faq) · [For AI coding assistants](#for-ai-coding-assistants) · [Security and privacy](#security-and-privacy) · [Contributing](#contributing)
+- [Integrations](#integrations) · [Troubleshooting](#troubleshooting) · [Migrating from Regrade](#migrating-from-regrade) · [FAQ](#faq) · [For AI coding assistants](#for-ai-coding-assistants) · [Security and privacy](#security-and-privacy) · [Learn more](#learn-more) · [Contributing](#contributing)
 
 ## Why AI applications need behavioral regression tests
 
@@ -111,7 +111,9 @@ behavtest compare · support-bot
   overall change     mean per case -28.7 pts, 95% CI [-41.3 pts, -16.3 pts], p=<0.0001 → significant regression
 ```
 
-Each case on its own has only 10 attempts per side, so most per-case drops are "not significant"; the overall test pools the evidence across cases and is sure. Cases whose definition, scorer or judge changed between the two runs are reported as `modified` and never counted as regressions, so changing a test is not mistaken for a change in behavior. The details: [compare runs](#compare-runs-what-regressed-and-is-it-real).
+Each case on its own has only 10 attempts per side, so most per-case drops are "not significant"; the overall test pools the evidence across cases and is sure. Cases whose definition, scorer or judge changed between the two runs are reported as `modified` and never counted as regressions, so changing a test is not mistaken for a change in behavior. The details: [compare runs](#compare-runs-what-regressed-and-is-it-real) and the [statistical reference](https://dhrumilbhut.github.io/behavtest/docs/statistics/). The concept, from first principles: [behavioral regression testing](https://dhrumilbhut.github.io/behavtest/behavioral-regression-testing/).
+
+Next: try it in the [quickstart](#quickstart), connect your stack with an [integration](https://dhrumilbhut.github.io/behavtest/integrations/), gate pull requests with the [GitHub Action](#github-action), or browse the [examples](https://github.com/dhrumilbhut/behavtest/tree/main/examples).
 
 ## When to use BehavTest
 
@@ -353,6 +355,22 @@ Run each case several times with `--repeat 5`. A case that passes on some attemp
 ### Check latency and cost
 
 Add `"latencyCost"` with `maxLatencyMs` and/or `maxCostUsd`. Cost comes from token usage and a bundled price table; unknown prices are reported as unknown, never guessed. See [cost](#cost).
+
+## Integrations
+
+Step-by-step setups, each with a working example, the command to run it, what regressions it catches and its limits:
+
+| Stack | How BehavTest connects |
+|---|---|
+| [OpenAI](https://dhrumilbhut.github.io/behavtest/integrations/openai/) | Built-in `openai` adapter; OpenAI models as the judge |
+| [Anthropic (Claude)](https://dhrumilbhut.github.io/behavtest/integrations/anthropic/) | Built-in `anthropic` adapter; Claude models as the judge |
+| [Ollama and OpenAI-compatible servers](https://dhrumilbhut.github.io/behavtest/integrations/ollama/) | `openai` adapter with `baseUrl` |
+| [HTTP services: Python, FastAPI, any language](https://dhrumilbhut.github.io/behavtest/integrations/http/) | `http` adapter, with the full request and response contract |
+| [LangChain](https://dhrumilbhut.github.io/behavtest/integrations/langchain/) | Python over HTTP, or LangChain.js in a code suite |
+| [Vercel AI SDK](https://dhrumilbhut.github.io/behavtest/integrations/vercel-ai-sdk/) | `generateText` in a code suite, with token usage and tool calls |
+| [GitHub Actions](#github-action) | The `dhrumilbhut/behavtest@v0` Action |
+
+Anything else that can answer an HTTP request can be tested through the [HTTP adapter](#adapters-what-to-test).
 
 ## Concepts
 
@@ -715,7 +733,7 @@ behavtest compare · support-bot
 - **Overall** it runs a paired permutation test, stratified by case, on the mean change in pass rate, with a within-case bootstrap for the interval. The question a gate asks is "on *this* suite, did the pass rate move by more than the pipeline's sampling noise?", so the randomness that matters is *within* each case, not which cases happen to exist. With one attempt per case this reduces to an exact sign test on the cases that flipped: six one-way flips are significant (p = 0.031), five are not (p = 0.063).
 - **Never compared:** a case whose definition changed between the runs (`modified`, which includes a different judge model for judged cases), a case in only one run (`new` / `removed`), and a case with an errored attempt (`errored`: no verdict). They are listed, never counted as regressions.
 
-`--fail-on-regression` fails on any regressed case (significant or not, because single-attempt suites can't do better), on any case that errored in the head run, and on a significant overall drop. `--significant-only` ignores regressions that aren't statistically significant. The tests check the statistics against textbook reference values and, by simulation, that the overall test rejects under 9% of the time when nothing changed and over 95% of the time for a real drop.
+`--fail-on-regression` fails on any regressed case (significant or not, because single-attempt suites can't do better), on any case that errored in the head run, and on a significant overall drop. `--significant-only` ignores regressions that aren't statistically significant. Every method, assumption and limit is documented in the [statistical reference](https://dhrumilbhut.github.io/behavtest/docs/statistics/). The tests check the statistics against textbook reference values and, by simulation, that the overall test rejects under 9% of the time when nothing changed and over 95% of the time for a real drop.
 
 ## Matrix runs: compare models and prompts side by side
 
@@ -1215,11 +1233,21 @@ A machine-readable summary is at [dhrumilbhut.github.io/behavtest/llms.txt](http
 
 ## Prior art
 
-BehavTest stands on ideas from [Promptfoo](https://www.promptfoo.dev), [DeepEval](https://deepeval.com), [Inspect AI](https://inspect.aisi.org.uk), and Ragas, and on the pass@k / pass^k reliability framing from τ-bench. If you need a hosted platform, deep RAG metrics today, or production observability, those tools are excellent. BehavTest's bet is a small, vendor-neutral, statistically honest behavioral regression testing tool you can run anywhere.
+BehavTest stands on ideas from [Promptfoo](https://www.promptfoo.dev), [DeepEval](https://deepeval.com), [Inspect AI](https://inspect.aisi.org.uk), and Ragas, and on the pass@k / pass^k reliability framing from τ-bench. If you need a hosted platform, deep RAG metrics today, or production observability, those tools are excellent. Sourced, side-by-side comparisons: [BehavTest vs Promptfoo, DeepEval, Ragas and LangSmith](https://dhrumilbhut.github.io/behavtest/comparisons/). BehavTest's bet is a small, vendor-neutral, statistically honest behavioral regression testing tool you can run anywhere.
 
 ## Roadmap
 
 Shipped: suites (JSON and code), HTTP / OpenAI / Anthropic / function pipelines, eight built-in scorers including RAG (`retrieval`, `faithfulness`, `contextRelevance`), repeats and flakiness, `compare` with significance tests, judge calibration against your labels, HTML / Markdown / JSON reports, a local dashboard (`behavtest serve`), run files and CI baselines, a GitHub Action, matrix runs across models and prompts, traces. Next: turning production failures into test cases, and a Python client. See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
+
+## Learn more
+
+The [documentation website](https://dhrumilbhut.github.io/behavtest/) has everything in this README, split into pages, plus:
+
+- **Guides to testing AI applications**, useful whether or not you use BehavTest: [behavioral regression testing](https://dhrumilbhut.github.io/behavtest/behavioral-regression-testing/) · [LLM regression testing](https://dhrumilbhut.github.io/behavtest/llm-regression-testing/) · [AI regression testing](https://dhrumilbhut.github.io/behavtest/ai-regression-testing/) · [LLM testing](https://dhrumilbhut.github.io/behavtest/llm-testing/) · [AI application testing](https://dhrumilbhut.github.io/behavtest/ai-application-testing/) · [LLM evaluation](https://dhrumilbhut.github.io/behavtest/llm-evaluation/)
+- **Integrations:** [OpenAI, Anthropic, Ollama, HTTP services, LangChain, Vercel AI SDK](https://dhrumilbhut.github.io/behavtest/integrations/)
+- **Comparisons:** [BehavTest vs Promptfoo, DeepEval, Ragas and LangSmith](https://dhrumilbhut.github.io/behavtest/comparisons/)
+- **Reference:** [statistical testing](https://dhrumilbhut.github.io/behavtest/docs/statistics/) · [troubleshooting](#troubleshooting) · [CLI](#cli-reference) · [library](#library-api-and-custom-scorers)
+- **Elsewhere:** [npm package](https://www.npmjs.com/package/behavtest) · [changelog](CHANGELOG.md) · [llms.txt](https://dhrumilbhut.github.io/behavtest/llms.txt) · [examples](https://github.com/dhrumilbhut/behavtest/tree/main/examples) · [live sample report](https://dhrumilbhut.github.io/behavtest/sample/)
 
 ## Development
 

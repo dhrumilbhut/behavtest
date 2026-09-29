@@ -116,7 +116,7 @@ behavtest run suite.json --repeat 10 --label after
 behavtest compare --fail-on-regression --significant-only
 ```
 
-Reproduce the numbers on this page with the keyless example: `behavtest run examples/nondeterministic/suite.mjs --label before`, then `SEED=2 behavtest run examples/nondeterministic/suite.mjs` (same bot) or `BOT_ACCURACY=0.6 SEED=3 behavtest run examples/nondeterministic/suite.mjs` (worse bot), then `behavtest compare`. The overall p-values are Monte Carlo estimates, so their last digits vary between runs. See [how BehavTest works](/docs/how-it-works/) and [how compare decides](/docs/compare/).
+Reproduce the numbers on this page with the keyless example: `behavtest run examples/nondeterministic/suite.mjs --label before`, then `SEED=2 behavtest run examples/nondeterministic/suite.mjs` (same bot) or `BOT_ACCURACY=0.6 SEED=3 behavtest run examples/nondeterministic/suite.mjs` (worse bot), then `behavtest compare`. The overall p-values are Monte Carlo estimates, so their last digits vary between runs. See [how BehavTest works](/docs/how-it-works/), [how compare decides](/docs/compare/) and the full [statistical reference](/docs/statistics/).
 
 ## What behavioral regression testing does not tell you
 

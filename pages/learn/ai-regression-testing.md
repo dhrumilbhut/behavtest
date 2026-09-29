@@ -89,3 +89,4 @@ BehavTest is a regression-testing tool for this setting: it runs your cases thro
 - [LLM regression testing](/llm-regression-testing/): the step-by-step workflow, with CI.
 - [AI application testing](/ai-application-testing/): what to test in each part of an AI application.
 - [LLM testing](/llm-testing/): how regression tests fit alongside unit tests and evaluations.
+- [Integrations](/integrations/): run it against OpenAI, Anthropic, Ollama, an HTTP service, LangChain or the Vercel AI SDK.

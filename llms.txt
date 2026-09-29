@@ -35,6 +35,25 @@ Key facts:
 - [Migrating from Regrade](https://github.com/dhrumilbhut/behavtest#migrating-from-regrade): the former name, and what changed with the rename
 - [For AI coding assistants](https://github.com/dhrumilbhut/behavtest#for-ai-coding-assistants): the rules for setting BehavTest up correctly
 
+## Learn
+
+- [Behavioral regression testing](https://dhrumilbhut.github.io/behavtest/behavioral-regression-testing/): the concept, from first principles, with real numbers
+- [LLM regression testing](https://dhrumilbhut.github.io/behavtest/llm-regression-testing/): how to regression test an LLM application whose outputs change between runs, including CI
+- [AI regression testing](https://dhrumilbhut.github.io/behavtest/ai-regression-testing/): traditional versus AI regression testing
+- [LLM testing](https://dhrumilbhut.github.io/behavtest/llm-testing/): unit tests, integration tests, evaluation, regression tests, production checks
+- [AI application testing](https://dhrumilbhut.github.io/behavtest/ai-application-testing/): what to test in prompts, retrieval, agents, dependencies
+- [LLM evaluation](https://dhrumilbhut.github.io/behavtest/llm-evaluation/): methods, LLM-as-a-judge, and evaluation versus regression testing
+- [Statistical testing in BehavTest](https://dhrumilbhut.github.io/behavtest/docs/statistics/): exactly what compare computes, and its limits
+- [Troubleshooting](https://dhrumilbhut.github.io/behavtest/docs/troubleshooting/): common error messages and fixes
+
+## Integrations
+
+- [OpenAI](https://dhrumilbhut.github.io/behavtest/integrations/openai/) · [Anthropic](https://dhrumilbhut.github.io/behavtest/integrations/anthropic/) · [Ollama and OpenAI-compatible servers](https://dhrumilbhut.github.io/behavtest/integrations/ollama/) · [HTTP services (Python, FastAPI)](https://dhrumilbhut.github.io/behavtest/integrations/http/) · [LangChain](https://dhrumilbhut.github.io/behavtest/integrations/langchain/) · [Vercel AI SDK](https://dhrumilbhut.github.io/behavtest/integrations/vercel-ai-sdk/)
+
+## Comparisons
+
+- [BehavTest vs Promptfoo](https://dhrumilbhut.github.io/behavtest/comparisons/promptfoo/) · [vs DeepEval](https://dhrumilbhut.github.io/behavtest/comparisons/deepeval/) · [vs Ragas](https://dhrumilbhut.github.io/behavtest/comparisons/ragas/) · [vs LangSmith](https://dhrumilbhut.github.io/behavtest/comparisons/langsmith/)
+
 ## Examples
 
 - [Documentation website](https://dhrumilbhut.github.io/behavtest/): one page per how-to guide and reference topic

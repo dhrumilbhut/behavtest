@@ -118,3 +118,4 @@ Safety and adversarial testing (red teaming), multi-turn conversation simulation
 - [LLM testing](/llm-testing/): the layers from unit tests to production checks.
 - [LLM regression testing](/llm-regression-testing/): the workflow, with CI.
 - BehavTest reference: [adapters](/docs/adapters/), [scorers](/docs/scorers/), [traces](/docs/traces/), [RAG](/docs/rag/), [cost](/docs/cost/).
+- Working setups for your stack: [HTTP services and FastAPI](/integrations/http/), [LangChain](/integrations/langchain/), [Vercel AI SDK](/integrations/vercel-ai-sdk/).

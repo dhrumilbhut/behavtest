@@ -212,7 +212,7 @@ const DOC_SLUGS: Record<string, string> = {
   "Migrating from Regrade": "migrating-from-regrade",
   Roadmap: "roadmap",
 };
-const SKIP = new Set(["Contents", "Development", "Contributing", "License", "How-to guides"]);
+const SKIP = new Set(["Contents", "Development", "Contributing", "License", "How-to guides", "Integrations", "Learn more"]);
 
 export function splitReadme(readme: string): Page[] {
   const noBadges = readme.replace(/^\[!\[.*$/m, "");
@@ -546,6 +546,9 @@ ${extraHead}
 ${content}
 <footer class="foot"><div class="wrap">
 <span class="sp">BehavTest ${esc(pkg.version)} · MIT license · formerly Regrade</span>
+<a href="${up}#learn">Learn</a>
+<a href="${up}integrations/">Integrations</a>
+<a href="${up}comparisons/">Comparisons</a>
 <a href="${REPO}">GitHub</a>
 <a href="https://www.npmjs.com/package/behavtest">npm</a>
 <a href="${REPO}/blob/main/CHANGELOG.md">Changelog</a>
