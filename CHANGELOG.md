@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Documentation only: no change to the CLI or the library.
+
+### Added
+- **Guides to testing AI applications** on the website: behavioral regression testing, LLM regression testing, AI regression testing, LLM testing, AI application testing and LLM evaluation. Their numbers come from BehavTest's own statistics and a new keyless example, `examples/nondeterministic` (a seeded bot that answers correctly with a set probability), whose figures a test keeps true.
+- **Integration pages** with a working example each: OpenAI, Anthropic, Ollama and OpenAI-compatible servers, HTTP services (Python, FastAPI), LangChain (Python and LangChain.js) and the Vercel AI SDK.
+- **Comparisons** with Promptfoo, DeepEval, Ragas and LangSmith, sourced from their documentation.
+- **Reference:** a statistical testing page (exactly what `compare` computes, and its limits), configuration (where each setting comes from and which wins), and troubleshooting (common error messages and their fixes).
+- Website: a social preview image, Twitter/X card tags, a favicon file and a 404 page.
+
+### Changed
+- The README opens with what BehavTest is, who it is for, the problem it solves and how to try it, and gains "Why AI applications need behavioral regression tests", "Installation", "Integrations" and "Learn more" sections. The GitHub Action section explains choosing a `gate` for nondeterministic pipelines.
+- The npm `homepage` is now the documentation website.
+
 ## [0.8.0]: Rename: Regrade → BehavTest
 
 Regrade has been renamed to **BehavTest**. The package now focuses on behavioral regression testing for AI applications: detecting meaningful changes in how a nondeterministic LLM app, AI agent or RAG pipeline behaves, by running test cases repeatedly and analyzing the results statistically. It is the same tool: commands, options, the suite format, scorers and statistics are unchanged.
