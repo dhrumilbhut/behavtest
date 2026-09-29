@@ -6,6 +6,37 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## Rename: Regrade → BehavTest
+
+Regrade has been renamed to **BehavTest**. The package now focuses on behavioral regression testing for AI applications: detecting meaningful changes in how a nondeterministic LLM app, AI agent or RAG pipeline behaves, by running test cases repeatedly and analyzing the results statistically. It is the same tool: commands, options, the suite format, scorers and statistics are unchanged.
+
+Users of the previous package should migrate from:
+
+```bash
+npm install regrade
+```
+
+to:
+
+```bash
+npm install behavtest
+```
+
+The old `regrade` package stays on npm, deprecated, with its versions and history; it gets no new releases. Entries below this one describe releases made under the Regrade name and are left as they were.
+
+### Changed
+- **New names:** npm package and CLI `behavtest` (was `regrade`); GitHub repository and Action `dhrumilbhut/behavtest` (`uses: dhrumilbhut/behavtest@v0`); results database `.behavtest/results.db`; `behavtest init` writes `behavtest/`; environment variables `BEHAVTEST_JUDGE` and `BEHAVTEST_ASCII`; default report file `behavtest-report.html`; the Action's default baseline `behavtest.baseline.json`; run files are written with `"kind": "behavtest.run"`.
+- **Library (breaking):** the run's version field is `behavtestVersion` (was `regradeVersion`) on `RunRecord`, in run files, and in the options of `runSuite` and `buildRunFile`. The base error class is `BehavTestError`.
+- Documentation, the website, reports, the dashboard and the Action's summaries and comments use the new name.
+
+### Kept working
+- An existing `.regrade/results.db` is used, with a notice, while there is no `.behavtest/` folder.
+- Run files written by Regrade (`"kind": "regrade.run"`, `regradeVersion`) load as before, so committed baselines keep working.
+- The Action uses `regrade.baseline.json` when `behavtest.baseline.json` does not exist, and updates a pull request comment it posted under the old name instead of adding a new one.
+- `REGRADE_JUDGE` and `REGRADE_ASCII` are read when the `BEHAVTEST_` variables are not set.
+- `RegradeError` is still exported, as a deprecated alias of `BehavTestError`.
+- Reports and the dashboard keep theme and label choices saved in the browser under the old name.
+
 ## [0.7.1]: GitHub Marketplace listing
 
 ### Fixed

@@ -11,8 +11,8 @@ import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const SITE = "https://dhrumilbhut.github.io/regrade";
-const REPO = "https://github.com/dhrumilbhut/regrade";
+const SITE = "https://dhrumilbhut.github.io/behavtest";
+const REPO = "https://github.com/dhrumilbhut/behavtest";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out") + 1]! : join(root, "site");
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version: string };
@@ -112,7 +112,7 @@ const plain = (md: string) =>
   md.replace(/```[\s\S]*?```/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[`*]/g, "").replace(/\s+/g, " ").trim();
 
 function describe(md: string, title: string): string {
-  // the opening prose, list items included ("Use Regrade when: - ..."), until there is a snippet's worth
+  // the opening prose, list items included ("Use BehavTest when: - ..."), until there is a snippet's worth
   let first = "";
   for (const block of md.replace(/```[\s\S]*?```/g, "").split(/\n\s*\n/)) {
     const p = block.trim();
@@ -124,7 +124,7 @@ function describe(md: string, title: string): string {
     if (plain(first).length >= 100) break;
   }
   // a page that opens with a table or code has no prose to quote
-  const text = plain(first) || `${title}: reference for Regrade, the open-source regression testing tool for LLM apps, AI agents and RAG pipelines.`;
+  const text = plain(first) || `${title}: reference for BehavTest, the open-source behavioral regression testing tool for AI applications.`;
   return text.length <= 158 ? text : `${text.slice(0, 155).replace(/\s+\S*$/, "")}…`;
 }
 
@@ -140,7 +140,8 @@ interface Page {
 
 /** Short URLs for the reference sections (the README's H2 headings). */
 const DOC_SLUGS: Record<string, string> = {
-  "When to use Regrade": "when-to-use",
+  "How it works": "how-it-works",
+  "When to use BehavTest": "when-to-use",
   Quickstart: "quickstart",
   Concepts: "concepts",
   "Suite format": "suite-format",
@@ -165,6 +166,7 @@ const DOC_SLUGS: Record<string, string> = {
   "For AI coding assistants": "for-ai-assistants",
   "Security and privacy": "security",
   "Prior art": "prior-art",
+  "Migrating from Regrade": "migrating-from-regrade",
   Roadmap: "roadmap",
 };
 const SKIP = new Set(["Contents", "Development", "Contributing", "License", "How-to guides"]);
@@ -174,7 +176,7 @@ export function splitReadme(readme: string): Page[] {
   const parts = noBadges.split(/^(?=## )/m);
   const intro = parts.shift()!;
   const pages: Page[] = [
-    { path: "", title: "Regrade: regression testing for LLM apps, AI agents and RAG pipelines", heading: "Regrade", body: intro, kind: "home" },
+    { path: "", title: "BehavTest: behavioral regression testing for AI applications", heading: "BehavTest", body: intro, kind: "home" },
   ];
   for (const part of parts) {
     const heading = /^## (.+)$/m.exec(part)![1]!.trim();
@@ -397,13 +399,13 @@ th { color: var(--ink2); font-weight: 600; background: var(--code-bg); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 `;
 
-const THEME_EARLY = `try{var t=localStorage.getItem("regrade-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}`;
+const THEME_EARLY = `try{var t=localStorage.getItem("behavtest-theme")||localStorage.getItem("regrade-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}`;
 
 const THEME_AND_COPY = `(function(){
 var b=document.getElementById("theme");
 function cur(){var a=document.documentElement.getAttribute("data-theme");return a||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}
 function sync(){if(!b)return;var d=cur()==="dark";b.setAttribute("aria-label",d?"Switch to light theme":"Switch to dark theme");b.title=b.getAttribute("aria-label")}
-if(b){b.addEventListener("click",function(){var n=cur()==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",n);try{localStorage.setItem("regrade-theme",n)}catch(e){}sync()});sync()}
+if(b){b.addEventListener("click",function(){var n=cur()==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",n);try{localStorage.setItem("behavtest-theme",n)}catch(e){}sync()});sync()}
 function copyButton(host,text){var c=document.createElement("button");c.type="button";c.className="copy";c.textContent="Copy";c.addEventListener("click",function(){if(!navigator.clipboard)return;navigator.clipboard.writeText(text()).then(function(){c.textContent="Copied";setTimeout(function(){c.textContent="Copy"},1400)},function(){})});host.appendChild(c)}
 document.querySelectorAll("pre:not(.plain)").forEach(function(p){copyButton(p,function(){var c=p.querySelector("code");return (c||p).textContent})});
 document.querySelectorAll(".install").forEach(function(el){copyButton(el,function(){return el.querySelector("code").textContent})});
@@ -439,9 +441,9 @@ function layout(page: Page, content: string, extraHead: string): string {
   const home = up || "./";
   const url = `${SITE}/${page.path}`;
   const description = page.kind === "home"
-    ? "Open-source CLI for regression testing LLM apps, AI agents and RAG pipelines: score answers, compare runs, and fail CI when quality drops."
+    ? "Behavioral regression testing for AI applications: run LLM app, agent and RAG test cases repeatedly, compare runs statistically, fail CI on real regressions."
     : describe(page.body.replace(/^# .*$/m, ""), page.title);
-  const title = page.kind === "home" ? page.title : `${page.title} · Regrade`;
+  const title = page.kind === "home" ? page.title : `${page.title} · BehavTest`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -453,7 +455,7 @@ function layout(page: Page, content: string, extraHead: string): string {
 <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0b0d11" media="(prefers-color-scheme: dark)">
 <meta property="og:type" content="${page.kind === "home" ? "website" : "article"}">
-<meta property="og:site_name" content="Regrade">
+<meta property="og:site_name" content="BehavTest">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${url}">
@@ -466,7 +468,7 @@ ${extraHead}
 </head>
 <body>
 <header class="top"><div class="wrap">
-<a class="brand" href="${home}">${ICONS.logo}Regrade</a>
+<a class="brand" href="${home}">${ICONS.logo}BehavTest</a>
 <nav class="menu" aria-label="Site">
 <a href="${up}docs/quickstart/">Quickstart</a>
 <a class="opt" href="${up}#how-to-guides">Guides</a>
@@ -479,9 +481,9 @@ ${extraHead}
 </div></header>
 ${content}
 <footer class="foot"><div class="wrap">
-<span class="sp">Regrade ${esc(pkg.version)} · MIT license</span>
+<span class="sp">BehavTest ${esc(pkg.version)} · MIT license · formerly Regrade</span>
 <a href="${REPO}">GitHub</a>
-<a href="https://www.npmjs.com/package/regrade">npm</a>
+<a href="https://www.npmjs.com/package/behavtest">npm</a>
 <a href="${REPO}/blob/main/CHANGELOG.md">Changelog</a>
 <a href="${up}llms.txt">llms.txt</a>
 <a href="${REPO}#readme">Generated from the README</a>
@@ -493,7 +495,7 @@ ${content}
 }
 
 function docPage(page: Page, body: string, pager: string): string {
-  const crumbs = `<p class="crumbs"><a href="../../">Regrade</a> › ${page.kind === "guide" ? `<a href="../../#how-to-guides">How-to guides</a>` : `<a href="../../#reference">Reference</a>`}</p>`;
+  const crumbs = `<p class="crumbs"><a href="../../">BehavTest</a> › ${page.kind === "guide" ? `<a href="../../#how-to-guides">How-to guides</a>` : `<a href="../../#reference">Reference</a>`}</p>`;
   return `<main class="doc">\n${crumbs}\n${body}\n${pager}\n</main>`;
 }
 
@@ -508,16 +510,16 @@ function landing(pages: Page[]): string {
 <section class="hero"><div class="wrap">
 <div>
 <span class="pill"><b>v${esc(pkg.version)}</b> Open source · MIT · No account</span>
-<h1>Regression testing for <span>LLM apps</span>, AI agents and RAG pipelines</h1>
-<p class="lede">Run your test cases through the real pipeline, score every answer, and fail the pull request that made things worse, with statistics that tell a real regression from random noise.</p>
+<h1>Behavioral regression testing for <span>AI applications</span></h1>
+<p class="lede">AI output is nondeterministic, so one run proves little. BehavTest runs your LLM app, agent or RAG test cases repeatedly, scores every answer, and uses statistics to tell a real change in behavior from random noise, then fails the pull request that made things worse.</p>
 <div class="actions"><a class="btn primary" href="docs/quickstart/">Get started</a><a class="btn ghost" href="sample/">See a sample report</a></div>
-${install("npx regrade init --ts && npx regrade run regrade/suite.mts")}
+${install("npx behavtest init --ts && npx behavtest run behavtest/suite.mts")}
 <p class="note">No API key needed to try it. Requires Node.js 24 or newer.</p>
 </div>
-<figure class="term" aria-label="Example: regrade compare output">
-<div class="bar"><i></i><i></i><i></i><span>regrade compare</span></div>
-<pre class="plain"><span class="d">$</span> npx regrade compare --fail-on-regression
-<span class="b">regrade compare · support-bot</span>
+<figure class="term" aria-label="Example: behavtest compare output">
+<div class="bar"><i></i><i></i><i></i><span>behavtest compare</span></div>
+<pre class="plain"><span class="d">$</span> npx behavtest compare --fail-on-regression
+<span class="b">behavtest compare · support-bot</span>
 <span class="d">  base  f033e1c8  prompt-v6
   head  22ec5145  prompt-v7</span>
 
@@ -538,8 +540,8 @@ ${install("npx regrade init --ts && npx regrade run regrade/suite.mts")}
 
 <section class="block" id="features"><div class="wrap">
 <p class="eyebrow">What it does</p>
-<h2>Know whether a change made your AI worse</h2>
-<p class="sub">A prompt tweak, a model swap or a new retrieval setting can quietly break answers. Regrade turns that into a test you run locally and in CI.</p>
+<h2>Know whether a change made your AI behave worse</h2>
+<p class="sub">A prompt tweak, a model swap or a new retrieval setting can quietly change how your application behaves. BehavTest turns that into a behavioral regression test you run locally and in CI.</p>
 <div class="grid">
 ${feature("run", "Test the real pipeline", "An HTTP endpoint in any language, an OpenAI-compatible or Anthropic model, or a function in your own process.", "docs/adapters/")}
 ${feature("check", "Score every answer", "Exact match, a prompt-injection-hardened LLM judge, latency and cost limits, or your own scorers in TypeScript.", "docs/scorers/")}
@@ -566,17 +568,17 @@ ${feature("local", "Zero infrastructure", "One CLI, one local SQLite file, and a
     "scorers": ["llmJudge"] }]
 }</code></pre></article>
 <article class="step"><h3>Run, change, compare</h3><p>Run before and after your change, a few attempts per case, and see what moved.</p>
-<pre><code>regrade run suite.json --repeat 5
+<pre><code>behavtest run suite.json --repeat 5
 # edit the prompt or swap the model
-regrade run suite.json --repeat 5
-regrade compare</code></pre></article>
+behavtest run suite.json --repeat 5
+behavtest compare</code></pre></article>
 <article class="step"><h3>Gate every pull request</h3><p>Commit a baseline once; CI fails the pull request that makes results worse.</p>
-<pre><code>regrade run suite.json \\
+<pre><code>behavtest run suite.json \\
   --repeat 3 --compact \\
-  --export regrade.baseline.json
+  --export behavtest.baseline.json
 # then in CI:
-regrade compare \\
-  regrade.baseline.json \\
+behavtest compare \\
+  behavtest.baseline.json \\
   --fail-on-regression</code></pre></article>
 </div>
 </div></section>
@@ -598,7 +600,7 @@ regrade compare \\
 <section class="final">
 <h2>Try it in one command</h2>
 <p>A working suite with a stand-in agent. No API key, no server, no account.</p>
-${install("npx regrade init --ts && npx regrade run regrade/suite.mts")}
+${install("npx behavtest init --ts && npx behavtest run behavtest/suite.mts")}
 </section>
 </main>`;
 }
@@ -618,14 +620,15 @@ export function buildSite(readme: string): Map<string, string> {
       head = jsonLd({
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
-        name: "Regrade",
-        description: "Regression testing for LLM apps, AI agents and RAG pipelines: run test cases through your pipeline, score answers, compare runs with statistical tests, and fail CI when quality drops.",
+        name: "BehavTest",
+        alternateName: "Regrade",
+        description: "Behavioral regression testing for AI applications: run LLM app, AI agent and RAG pipeline test cases repeatedly, score the answers, compare runs with statistical tests, and fail CI when behavior regresses.",
         applicationCategory: "DeveloperApplication",
         operatingSystem: "Windows, macOS, Linux (Node.js 24+)",
         softwareVersion: pkg.version,
         license: "https://opensource.org/licenses/MIT",
         url: `${SITE}/`,
-        downloadUrl: "https://www.npmjs.com/package/regrade",
+        downloadUrl: "https://www.npmjs.com/package/behavtest",
         codeRepository: REPO,
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       });
@@ -638,7 +641,7 @@ export function buildSite(readme: string): Map<string, string> {
       content = docPage(page, body, pager);
       head = page.path === "docs/faq/"
         ? jsonLd(faqLd(page.body))
-        : jsonLd({ "@context": "https://schema.org", "@type": "TechArticle", headline: page.title, url: `${SITE}/${page.path}`, about: "Regrade", isPartOf: `${SITE}/` });
+        : jsonLd({ "@context": "https://schema.org", "@type": "TechArticle", headline: page.title, url: `${SITE}/${page.path}`, about: "BehavTest", isPartOf: `${SITE}/` });
     }
     files.set(`${page.path}index.html`, layout(page, content, head));
   }

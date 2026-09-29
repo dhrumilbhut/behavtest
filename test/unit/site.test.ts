@@ -16,7 +16,7 @@ const read = (f: string) => readFileSync(f, "utf8");
 const rel = (f: string) => relative(out, f).replace(/\\/g, "/");
 
 beforeAll(() => {
-  out = mkdtempSync(join(tmpdir(), "regrade-site-"));
+  out = mkdtempSync(join(tmpdir(), "behavtest-site-"));
   const r = spawnSync(process.execPath, [join(root, "scripts", "site.mts"), "--out", out], { encoding: "utf8" });
   expect(r.status, r.stderr).toBe(0);
   pages = walk(out).filter((f) => f.endsWith(".html"));
@@ -73,7 +73,7 @@ describe("documentation site", () => {
       titles.add(title!);
       expect(description.length, `${rel(page)} description`).toBeGreaterThan(40);
       expect(description.length, `${rel(page)} description`).toBeLessThanOrEqual(160);
-      expect(html).toMatch(/<link rel="canonical" href="https:\/\/dhrumilbhut\.github\.io\/regrade\/[^"]*">/);
+      expect(html).toMatch(/<link rel="canonical" href="https:\/\/dhrumilbhut\.github\.io\/behavtest\/[^"]*">/);
       expect(html).toContain('<html lang="en">');
       expect(html).toContain('name="viewport"');
     }
@@ -81,7 +81,7 @@ describe("documentation site", () => {
 
   it("publishes structured data: SoftwareApplication on the landing page, FAQPage with every README question", () => {
     const ld = (f: string) => JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(read(join(out, f)))![1]!);
-    expect(ld("index.html")).toMatchObject({ "@type": "SoftwareApplication", name: "Regrade", offers: { price: "0" } });
+    expect(ld("index.html")).toMatchObject({ "@type": "SoftwareApplication", name: "BehavTest", alternateName: "Regrade", offers: { price: "0" } });
     const faq = ld("docs/faq/index.html");
     const questions = [...read(join(root, "README.md")).split(/^## FAQ$/m)[1]!.split(/^## /m)[0]!.matchAll(/^\*\*(.+\?)\*\*$/gm)].map((m) => m[1]);
     expect(faq["@type"]).toBe("FAQPage");
@@ -93,11 +93,11 @@ describe("documentation site", () => {
   it("writes a sitemap of every page, robots.txt, llms.txt and llms-full.txt", () => {
     const sitemap = read(join(out, "sitemap.xml"));
     for (const page of pages) {
-      const url = `https://dhrumilbhut.github.io/regrade/${rel(page).replace(/index\.html$/, "")}`;
+      const url = `https://dhrumilbhut.github.io/behavtest/${rel(page).replace(/index\.html$/, "")}`;
       expect(sitemap).toContain(`<loc>${url}</loc>`);
     }
-    expect(read(join(out, "robots.txt"))).toContain("Sitemap: https://dhrumilbhut.github.io/regrade/sitemap.xml");
-    expect(read(join(out, "llms.txt"))).toMatch(/^# Regrade\n\n> /);
+    expect(read(join(out, "robots.txt"))).toContain("Sitemap: https://dhrumilbhut.github.io/behavtest/sitemap.xml");
+    expect(read(join(out, "llms.txt"))).toMatch(/^# BehavTest\n\n> /);
     expect(read(join(out, "llms-full.txt"))).toBe(read(join(root, "README.md")));
   });
 
@@ -105,7 +105,7 @@ describe("documentation site", () => {
     for (const page of pages) {
       const html = read(page);
       expect(html, rel(page)).toContain('<button class="theme" id="theme" type="button"');
-      const early = html.indexOf('localStorage.getItem("regrade-theme")');
+      const early = html.indexOf('localStorage.getItem("behavtest-theme")');
       expect(early, rel(page)).toBeGreaterThan(-1);
       expect(early, `${rel(page)}: theme must be applied before the stylesheet`).toBeLessThan(html.indexOf("<style>"));
       expect(html).toContain(':root[data-theme="dark"]');
@@ -116,8 +116,8 @@ describe("documentation site", () => {
 
   it("the landing page leads with the definition, a copyable install command and the main sections", () => {
     const html = read(join(out, "index.html"));
-    expect(html).toMatch(/<h1>Regression testing for <span>LLM apps<\/span>, AI agents and RAG pipelines<\/h1>/);
-    expect(html).toContain('<div class="install"><code>npx regrade init --ts &amp;&amp; npx regrade run regrade/suite.mts</code></div>');
+    expect(html).toMatch(/<h1>Behavioral regression testing for <span>AI applications<\/span><\/h1>/);
+    expect(html).toContain('<div class="install"><code>npx behavtest init --ts &amp;&amp; npx behavtest run behavtest/suite.mts</code></div>');
     for (const id of ["features", "how-it-works", "how-to-guides", "reference"]) expect(html).toContain(`id="${id}"`);
   });
 
