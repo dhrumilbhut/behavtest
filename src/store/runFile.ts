@@ -4,7 +4,9 @@ import { z } from "zod";
 import { ConfigError, errorMessage } from "../core/errors.js";
 import type { AttemptRecord, RunRecord } from "../core/types.js";
 
-export const RUN_FILE_KIND = "regrade.run";
+export const RUN_FILE_KIND = "behavtest.run";
+/** The kind written by Regrade, this project's former name (0.7.x and earlier). Still read. */
+export const LEGACY_RUN_FILE_KIND = "regrade.run";
 export const RUN_FILE_VERSION = 1;
 
 /**
@@ -19,8 +21,8 @@ export const RUN_FILE_VERSION = 1;
 export interface RunFile {
   kind: typeof RUN_FILE_KIND;
   schemaVersion: typeof RUN_FILE_VERSION;
-  /** Version of Regrade that wrote the file. */
-  regradeVersion: string;
+  /** Version of BehavTest that wrote the file. */
+  behavtestVersion: string;
   exportedAt: string;
   compact: boolean;
   run: RunRecord;
@@ -60,13 +62,13 @@ function compactAttempt(a: AttemptRecord): AttemptRecord {
 export function buildRunFile(
   run: RunRecord,
   attempts: readonly AttemptRecord[],
-  opts: { regradeVersion: string; compact?: boolean; now?: Date },
+  opts: { behavtestVersion: string; compact?: boolean; now?: Date },
 ): RunFile {
   const compact = opts.compact ?? false;
   return {
     kind: RUN_FILE_KIND,
     schemaVersion: RUN_FILE_VERSION,
-    regradeVersion: opts.regradeVersion,
+    behavtestVersion: opts.behavtestVersion,
     exportedAt: (opts.now ?? new Date()).toISOString(),
     compact,
     run,
@@ -123,7 +125,7 @@ const runSchema = z.looseObject({
   startedAt: z.string(),
   finishedAt: z.string().nullable(),
   status: z.enum(["running", "completed", "interrupted", "failed"]),
-  regradeVersion: z.string(),
+  behavtestVersion: z.string(),
   gitSha: z.string().nullable(),
   gitDirty: z.boolean().nullable(),
   label: z.string().nullable(),
@@ -134,12 +136,23 @@ const runSchema = z.looseObject({
 const fileSchema = z.looseObject({
   kind: z.literal(RUN_FILE_KIND),
   schemaVersion: z.literal(RUN_FILE_VERSION),
-  regradeVersion: z.string(),
+  behavtestVersion: z.string(),
   exportedAt: z.string(),
   compact: z.boolean(),
   run: runSchema,
   attempts: z.array(attemptSchema),
 });
+
+/** A file written by Regrade (the former name): same layout, older names for the kind and version fields. */
+function upgradeLegacy(raw: Record<string, unknown>): Record<string, unknown> {
+  if (raw.kind !== LEGACY_RUN_FILE_KIND) return raw;
+  const renameVersion = (o: Record<string, unknown>) => {
+    const { regradeVersion, ...rest } = o;
+    return rest.behavtestVersion === undefined ? { ...rest, behavtestVersion: regradeVersion } : rest;
+  };
+  const run = raw.run && typeof raw.run === "object" ? renameVersion(raw.run as Record<string, unknown>) : raw.run;
+  return { ...renameVersion(raw), kind: RUN_FILE_KIND, run };
+}
 
 /** Parse a run file's text; `path` names it in errors. Throws `ConfigError` for anything that is not a valid run file. */
 export function parseRunFile(text: string, path: string): LoadedRun {
@@ -151,16 +164,16 @@ export function parseRunFile(text: string, path: string): LoadedRun {
     throw new ConfigError(`${source} is not valid JSON: ${errorMessage(err)}`);
   }
   const head = raw as { kind?: unknown; schemaVersion?: unknown } | null;
-  if (head?.kind !== RUN_FILE_KIND) {
+  if (head?.kind !== RUN_FILE_KIND && head?.kind !== LEGACY_RUN_FILE_KIND) {
     throw new ConfigError(
-      `${source} is not a Regrade run file (expected "kind": "${RUN_FILE_KIND}"). ` +
-        "Create one with `regrade export <run>` or `regrade run --export <file>`; a `--json` report cannot be used as a run.",
+      `${source} is not a BehavTest run file (expected "kind": "${RUN_FILE_KIND}"). ` +
+        "Create one with `behavtest export <run>` or `behavtest run --export <file>`; a `--json` report cannot be used as a run.",
     );
   }
   if (typeof head.schemaVersion === "number" && head.schemaVersion > RUN_FILE_VERSION) {
-    throw new ConfigError(`${source} was written by a newer Regrade (run file version ${head.schemaVersion}). Upgrade Regrade.`);
+    throw new ConfigError(`${source} was written by a newer BehavTest (run file version ${head.schemaVersion}). Upgrade BehavTest.`);
   }
-  const parsed = fileSchema.safeParse(raw);
+  const parsed = fileSchema.safeParse(upgradeLegacy(raw as Record<string, unknown>));
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     throw new ConfigError(`${source} is not a valid run file: ${issue ? `${issue.path.join(".")}: ${issue.message}` : "unexpected shape"}`);

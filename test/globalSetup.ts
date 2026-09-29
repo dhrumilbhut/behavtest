@@ -4,12 +4,12 @@ import { resolve } from "node:path";
 
 /**
  * E2E tests spawn the built CLI, so build once before the suite runs.
- * Set REGRADE_SKIP_BUILD=1 to reuse an existing `dist/`.
+ * Set BEHAVTEST_SKIP_BUILD=1 to reuse an existing `dist/`.
  */
 export default function setup(): void {
   const root = resolve(import.meta.dirname, "..");
   const cli = resolve(root, "dist", "cli.js");
-  if (process.env.REGRADE_SKIP_BUILD && existsSync(cli)) return;
+  if (process.env.BEHAVTEST_SKIP_BUILD && existsSync(cli)) return;
   // A single command string with `shell: true` works on every OS (npm is npm.cmd on Windows).
   const res = spawnSync("npm run build", { cwd: root, encoding: "utf8", shell: true });
   if (res.status !== 0) {

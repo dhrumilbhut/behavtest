@@ -1,4 +1,5 @@
 import pc from "picocolors";
+import { envSetting } from "../core/env.js";
 import type { CaseVerdict } from "../core/types.js";
 import { formatMs, formatUsd } from "../report/console.js";
 import { pctWithInterval, points } from "../report/format.js";
@@ -41,14 +42,14 @@ export interface MatrixRenderOptions {
 
 export function renderMatrixConsole(m: MatrixReport, opts: MatrixRenderOptions = {}): string {
   const c = pc.createColors(opts.color ?? (Boolean(process.stdout.isTTY) && !process.env.NO_COLOR));
-  const ascii = opts.ascii ?? Boolean(process.env.REGRADE_ASCII);
+  const ascii = opts.ascii ?? Boolean(envSetting("ASCII"));
   const mark: Record<CaseVerdict, string> = ascii
     ? { passed: "ok", failed: "FAIL", flaky: "~", errored: "ERR" }
     : { passed: "✓", failed: "✗", flaky: "~", errored: "!" };
   const paint: Record<CaseVerdict, (s: string) => string> = { passed: c.green, failed: c.red, flaky: c.yellow, errored: c.yellow };
   const dot = ascii ? "-" : "·";
   const out: string[] = [];
-  out.push(`${c.bold("regrade matrix")} ${dot} ${m.suiteName} ${dot} ${m.variants.length} variant${m.variants.length === 1 ? "" : "s"} ${dot} matrix ${m.matrixId.slice(0, 8)}`);
+  out.push(`${c.bold("behavtest matrix")} ${dot} ${m.suiteName} ${dot} ${m.variants.length} variant${m.variants.length === 1 ? "" : "s"} ${dot} matrix ${m.matrixId.slice(0, 8)}`);
   for (const w of m.warnings) out.push(`  ${c.yellow("warning:")} ${w}`);
   out.push("");
 
@@ -91,7 +92,7 @@ export function renderMatrixConsole(m: MatrixReport, opts: MatrixRenderOptions =
 export function renderMatrixMarkdown(m: MatrixReport): string {
   const esc = (s: string) => s.replace(/\|/g, "\\|");
   const lines = [
-    `## Regrade matrix: ${esc(m.suiteName)}`,
+    `## BehavTest matrix: ${esc(m.suiteName)}`,
     "",
     `${m.variants.length} variant${m.variants.length === 1 ? "" : "s"}, matrix \`${m.matrixId.slice(0, 8)}\`, compared with **${esc(m.reference)}**.`,
     "",

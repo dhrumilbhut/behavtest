@@ -42,7 +42,7 @@ export default {
 
 beforeAll(() => {
   expect(existsSync(cli), "dist/cli.js is missing: run `npm run build`").toBe(true);
-  dir = mkdtempSync(join(tmpdir(), "regrade-matrix-"));
+  dir = mkdtempSync(join(tmpdir(), "behavtest-matrix-"));
   writeFileSync(join(dir, "suite.mjs"), SUITE);
 });
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -58,14 +58,14 @@ describe("matrix runs (built binary)", () => {
     expect(r.stdout).toMatch(/never\s+p99\s+0%.*-100\.0 pts.*significantly worse/);
     const json = JSON.parse(readFileSync(join(dir, "m.json"), "utf8")) as { variants: Array<{ variant: string }>; reference: string };
     expect(json.variants.map((v) => v.variant)).toEqual(["always", "half", "never"]);
-    expect(readFileSync(join(dir, "m.md"), "utf8")).toContain("## Regrade matrix: matrix-e2e");
+    expect(readFileSync(join(dir, "m.md"), "utf8")).toContain("## BehavTest matrix: matrix-e2e");
   });
 
-  it("regrade matrix shows the latest matrix against any reference, lists matrices and writes a report", async () => {
+  it("behavtest matrix shows the latest matrix against any reference, lists matrices and writes a report", async () => {
     const r = await runCli(["matrix", "--reference", "half", "--out", "matrix.html"]);
     expect(r.code).toBe(0);
     expect(r.stdout).toMatch(/always\s+p1\s+100%.*\+50\.0 pts/);
-    expect(readFileSync(join(dir, "matrix.html"), "utf8")).toContain('id="regrade-data"');
+    expect(readFileSync(join(dir, "matrix.html"), "utf8")).toContain('id="behavtest-data"');
     const list = await runCli(["matrix", "--list"]);
     expect(list.stdout).toMatch(/matrix-e2e {2}always, half, never/);
     const bad = await runCli(["matrix", "--reference", "nope"]);

@@ -105,7 +105,7 @@ const registry = createRegistry();
 const store = new SqliteStore(":memory:");
 const run = async (v, label) => {
   version = v;
-  return runSuite({ suite, registry, store, regradeVersion: pkg.version, overrides: { label } });
+  return runSuite({ suite, registry, store, behavtestVersion: pkg.version, overrides: { label } });
 };
 const base = await run("v1", "prompt-v1");
 const head = await run("v2", "prompt-v2");
@@ -115,9 +115,9 @@ const cmp = compareRuns({ base: { run: base.run, attempts: base.attempts }, head
 const gate = regressionGate(cmp);
 const headReport = buildRunReport(head.run, head.attempts);
 
-// On the website, a thin bar leads back to the docs; `regrade report` itself never adds it.
+// On the website, a thin bar leads back to the docs; `behavtest report` itself never adds it.
 const siteBar = outDir.replace(/\\/g, "/").endsWith("/sample")
-  ? `<div style="border-bottom:1px solid var(--border);background:var(--surface);font-size:13.5px;color:var(--ink2)"><div style="max-width:1120px;margin:0 auto;padding:10px 20px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center"><a href="../" style="color:var(--accent);text-decoration:none;font-weight:600">← Regrade docs</a><span>A sample of the single-file report that <code>regrade report</code> writes: a healthy pipeline compared with a degraded one.</span></div></div>`
+  ? `<div style="border-bottom:1px solid var(--border);background:var(--surface);font-size:13.5px;color:var(--ink2)"><div style="max-width:1120px;margin:0 auto;padding:10px 20px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center"><a href="../" style="color:var(--accent);text-decoration:none;font-weight:600">← BehavTest docs</a><span>A sample of the single-file report that <code>behavtest report</code> writes: a healthy pipeline compared with a degraded one.</span></div></div>`
   : "";
 writeFileSync(join(outDir, "index.html"), renderHtmlReport({ report: headReport, comparison: cmp, version: pkg.version }).replace("<body>", `<body>${siteBar}`));
 writeFileSync(join(outDir, "compare.md"), renderCompareMarkdown(cmp, gate, pkg.version));

@@ -160,7 +160,7 @@ describe("retrieval scoring through the runner", () => {
     const reg = registry();
     reg.registerAdapter(functionAdapter({ name: "rag-fn", run: (input) => answer(String(input), { mode }) }));
     const { _mode: _ignored, ...s } = suite(mode, expectedDocs);
-    return runSuite({ suite: s, registry: reg, store: store!, regradeVersion: "t", env: {} });
+    return runSuite({ suite: s, registry: reg, store: store!, behavtestVersion: "t", env: {} });
   };
 
   it("passes when the pipeline retrieves the expected document, fails when it goes missing", async () => {

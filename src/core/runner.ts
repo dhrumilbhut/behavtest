@@ -4,7 +4,7 @@ import type { PriceTable } from "../pricing/cost.js";
 import type { RunReporter } from "../report/types.js";
 import type { Store } from "../store/store.js";
 import { raceAbort } from "./abortable.js";
-import { resolveEnv, type Env } from "./env.js";
+import { envSetting, resolveEnv, type Env } from "./env.js";
 import { AdapterError, ConfigError, errorMessage } from "./errors.js";
 import type { GitInfo } from "./git.js";
 import { stableHash } from "./hash.js";
@@ -42,7 +42,7 @@ export interface RunOverrides {
   /** Set by `runMatrix`: the matrix this run belongs to and its variant's name. */
   matrixId?: string;
   variant?: string;
-  /** Judge model as `provider:model`; beats suite defaults and REGRADE_JUDGE. */
+  /** Judge model as `provider:model`; beats suite defaults and BEHAVTEST_JUDGE. */
   judge?: string;
   /** Default true: before any case runs, make one tiny call to each judge to check it works. */
   judgeCheck?: boolean;
@@ -60,7 +60,7 @@ export interface RunOptions {
   suite: TestSuite;
   registry: Registry;
   store: Store;
-  regradeVersion: string;
+  behavtestVersion: string;
   reporter?: RunReporter;
   env?: Env;
   overrides?: RunOverrides;
@@ -148,7 +148,7 @@ export async function runSuite(opts: RunOptions): Promise<RunOutcome> {
     env,
   );
 
-  const judgeFromEnv = env.REGRADE_JUDGE ? env.REGRADE_JUDGE : undefined;
+  const judgeFromEnv = envSetting("JUDGE", env);
   const judge = overrides.judge ?? defaults.judge ?? judgeFromEnv;
   const scorerNames = [...new Set(cases.flatMap((c) => c.scorers))];
   const usesJudge = scorerNames.some((n) => registry.getScorer(n).usesJudge);
@@ -195,7 +195,7 @@ export async function runSuite(opts: RunOptions): Promise<RunOutcome> {
     suiteName: suite.name,
     suiteHash: stableHash(suiteForHash),
     startedAt,
-    regradeVersion: opts.regradeVersion,
+    behavtestVersion: opts.behavtestVersion,
     gitSha: opts.git?.sha ?? null,
     gitDirty: opts.git?.dirty ?? null,
     label: overrides.label ?? null,

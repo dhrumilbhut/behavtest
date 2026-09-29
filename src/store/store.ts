@@ -40,7 +40,7 @@ export interface Store {
   /** Accepts a full run id or a unique prefix. Throws `ConfigError` if ambiguous. */
   getRun(idOrPrefix: string): RunRecord | undefined;
   listRuns(opts?: { suiteName?: string; limit?: number }): RunRecord[];
-  /** Matrices, newest first. Optional: stores without matrix support skip `regrade matrix`. */
+  /** Matrices, newest first. Optional: stores without matrix support skip `behavtest matrix`. */
   listMatrices?(opts?: { suiteName?: string; limit?: number }): MatrixSummary[];
   /** One matrix by id or unique prefix. Throws `ConfigError` if ambiguous. */
   getMatrix?(idOrPrefix: string): MatrixSummary | undefined;

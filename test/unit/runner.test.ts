@@ -35,7 +35,7 @@ const exact = (id: string, input: string, expected: string, extra: Partial<TestC
 });
 
 function run(suite: TestSuite, over: Partial<RunOptions> = {}, overrides: RunOverrides = {}) {
-  return runSuite({ suite, registry: registry(), store: store!, regradeVersion: "0.1.0-test", env: {}, overrides, ...over });
+  return runSuite({ suite, registry: registry(), store: store!, behavtestVersion: "0.1.0-test", env: {}, overrides, ...over });
 }
 
 describe("runSuite: outcomes and exit codes", () => {
@@ -273,7 +273,7 @@ describe("runSuite: persistence", () => {
   it("stores label and git info", async () => {
     const { mock } = await setup();
     const out = await run(httpSuite(mock.url, [exact("c", "What is 2 + 2?", "4")]), { git: { sha: "deadbeef", dirty: false } }, { label: "prompt-v7" });
-    expect(out.run).toMatchObject({ label: "prompt-v7", gitSha: "deadbeef", gitDirty: false, regradeVersion: "0.1.0-test" });
+    expect(out.run).toMatchObject({ label: "prompt-v7", gitSha: "deadbeef", gitDirty: false, behavtestVersion: "0.1.0-test" });
   });
 });
 
@@ -328,10 +328,10 @@ describe("runSuite: preflight and filters", () => {
     expect(mock.requests).toHaveLength(0);
   });
 
-  it("resolves the judge with precedence: --judge over suite defaults over REGRADE_JUDGE", async () => {
+  it("resolves the judge with precedence: --judge over suite defaults over BEHAVTEST_JUDGE", async () => {
     const { mock } = await setup();
     stub = await startStubJudge();
-    const env = { ANTHROPIC_API_KEY: "k", ANTHROPIC_BASE_URL: stub.anthropicBaseUrl, REGRADE_JUDGE: "anthropic:from-env" };
+    const env = { ANTHROPIC_API_KEY: "k", ANTHROPIC_BASE_URL: stub.anthropicBaseUrl, BEHAVTEST_JUDGE: "anthropic:from-env" };
     const suite = httpSuite(mock.url, [{ id: "c", input: "What is 2 + 2?", scorers: ["llmJudge"] }], { defaults: { judge: "anthropic:from-suite" } });
 
     await run(suite, { env });

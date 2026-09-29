@@ -1,4 +1,4 @@
-// A keyless suite for trying (and testing) the Regrade GitHub Action.
+// A keyless suite for trying (and testing) the BehavTest GitHub Action.
 // The "pipeline" is a tiny FAQ bot; set BOT_QUALITY=broken to simulate a pull request that breaks it.
 const answers = {
   "opening-hours": "We are open 9am to 5pm, Monday to Friday.",

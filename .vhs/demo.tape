@@ -17,15 +17,15 @@ Hide
 Type "export PORT=4000 && d=$(mktemp -d) && cd $d && clear" Enter
 Show
 
-Type "regrade init" Enter
+Type "behavtest init" Enter
 Sleep 2s
 
 Hide
-Type "node regrade/mock-pipeline.mjs > /dev/null 2>&1 &" Enter
+Type "node behavtest/mock-pipeline.mjs > /dev/null 2>&1 &" Enter
 Type "sleep 1 && clear" Enter
 Show
 
-Type "regrade run regrade/suite.json --repeat 3" Enter
+Type "behavtest run behavtest/suite.json --repeat 3" Enter
 Sleep 8s
 
 Hide

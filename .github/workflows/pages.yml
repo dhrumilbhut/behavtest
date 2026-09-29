@@ -1,6 +1,6 @@
 name: Sample report
 
-# Builds Regrade and publishes the GitHub Pages site: the documentation pages generated from
+# Builds BehavTest and publishes the GitHub Pages site: the documentation pages generated from
 # README.md (scripts/site.mts), llms.txt, and the deterministic sample report under /sample
 # (no API keys needed), so the README can link to a real, clickable report. Requires Pages to be enabled (Settings -> Pages -> Source: GitHub Actions).
 # Runs on every push to main so the published page always matches the code, and can be run by hand.

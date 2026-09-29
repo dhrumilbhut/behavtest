@@ -1,6 +1,7 @@
 node_modules/
 dist/
 coverage/
+.behavtest/
 .regrade/
 *.db
 *.db-shm

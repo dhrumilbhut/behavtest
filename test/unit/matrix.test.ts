@@ -89,7 +89,7 @@ describe("variants", () => {
 
 async function matrixRun(over: Partial<TestSuite> = {}, extra: { variants?: string[]; signal?: AbortSignal } = {}) {
   store = new SqliteStore(":memory:");
-  return runMatrix({ suite: suite(over), registry: registry(), store, regradeVersion: "t", overrides: { repeat: 2 }, ...extra });
+  return runMatrix({ suite: suite(over), registry: registry(), store, behavtestVersion: "t", overrides: { repeat: 2 }, ...extra });
 }
 
 describe("runMatrix", () => {
@@ -129,7 +129,7 @@ describe("runMatrix", () => {
 
   it("plain runs keep their shape; matrix runs carry matrixId and variant", async () => {
     await matrixRun();
-    const plain = { runId: "plain-1", suiteName: "m", suiteHash: "h", startedAt: "2026-01-01T00:00:00.000Z", regradeVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {} };
+    const plain = { runId: "plain-1", suiteName: "m", suiteHash: "h", startedAt: "2026-01-01T00:00:00.000Z", behavtestVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {} };
     store!.createRun(plain);
     expect(Object.keys(store!.getRun("plain-1")!)).not.toContain("variant");
     expect(store!.listRuns({ limit: 10 }).filter((r) => r.variant).length).toBe(3);
@@ -175,7 +175,7 @@ describe("buildMatrix", () => {
     const m = await matrixRun();
     const report = buildMatrix(m.matrixId, loadMatrix(store!, store!.getMatrix!(m.matrixId)!));
     const text = renderMatrixConsole(report, { color: false });
-    expect(text).toContain("regrade matrix · m · 3 variants");
+    expect(text).toContain("behavtest matrix · m · 3 variants");
     expect(text).toMatch(/bad \*\s+quality/);
     expect(text).toContain("+100.0 pts");
     expect(text).toMatch(/alpha\s+0\/2 ✗\s+1\/2 ~\s+2\/2 ✓/);
@@ -193,9 +193,9 @@ describe("buildMatrix", () => {
 });
 
 describe("picking runs and matrices", () => {
-  it("regrade compare with one run compares it with the previous run of the same variant", async () => {
+  it("behavtest compare with one run compares it with the previous run of the same variant", async () => {
     await matrixRun();
-    const second = await runMatrix({ suite: suite(), registry: registry(), store: store!, regradeVersion: "t", overrides: { repeat: 1 }, variants: ["half"] });
+    const second = await runMatrix({ suite: suite(), registry: registry(), store: store!, behavtestVersion: "t", overrides: { repeat: 1 }, variants: ["half"] });
     const head = store!.getRun(second.runs[0]!.run.runId)!;
     const { base } = pickComparison(store!, [head.runId]);
     expect(base.variant).toBe("half");
@@ -203,7 +203,7 @@ describe("picking runs and matrices", () => {
 
   it("the default matrix is the latest with two or more variants", async () => {
     const full = await matrixRun();
-    await runMatrix({ suite: suite(), registry: registry(), store: store!, regradeVersion: "t", overrides: { repeat: 1 }, variants: ["good"] });
+    await runMatrix({ suite: suite(), registry: registry(), store: store!, behavtestVersion: "t", overrides: { repeat: 1 }, variants: ["good"] });
     expect(pickMatrix(store!, undefined).matrixId).toBe(full.matrixId);
     expect(() => pickMatrix(store!, "zzzz")).toThrow(/No matrix matching/);
     expect(() => pickMatrix(store!, undefined, "other-suite")).toThrow(/No matrix runs of suite "other-suite"/);

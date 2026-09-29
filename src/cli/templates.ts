@@ -1,10 +1,10 @@
 /**
- * Files written by `regrade init`. `examples/qa-http/mock-pipeline.mjs` must stay
+ * Files written by `behavtest init`. `examples/qa-http/mock-pipeline.mjs` must stay
  * identical to MOCK_PIPELINE (a test enforces it).
  */
 
 export const INIT_SUITE = `{
-  "$schema": "https://unpkg.com/regrade/schema/suite.schema.json",
+  "$schema": "https://unpkg.com/behavtest/schema/suite.schema.json",
   "name": "my-first-suite",
   "description": "Runs against the bundled mock pipeline. Point pipeline.config.url at your own endpoint.",
   "pipeline": {
@@ -30,7 +30,7 @@ export const INIT_SUITE = `{
 `;
 
 export const MOCK_PIPELINE = `// A tiny stand-in for your AI pipeline: POST { "input": "..." } -> { "output": "..." }.
-// Run it with:  node regrade/mock-pipeline.mjs
+// Run it with:  node behavtest/mock-pipeline.mjs
 import { createServer } from "node:http";
 
 const answers = {
@@ -63,10 +63,10 @@ createServer((req, res) => {
 }).listen(port, () => console.log(\`mock pipeline listening on http://localhost:\${port}/pipeline\`));
 `;
 
-export const INIT_TS_SUITE = `// A code-first suite. Run it with:  regrade run regrade/suite.mts
+export const INIT_TS_SUITE = `// A code-first suite. Run it with:  behavtest run behavtest/suite.mts
 // Node runs TypeScript natively by stripping types. The .mts extension makes this an ES module whatever
-// your package.json says; with "type": "module" you may rename it to suite.ts. Prefer JSON? Run \`regrade init\`.
-import type { CodeSuite } from "regrade"; // type-only: erased at runtime, so no local install is needed to run it
+// your package.json says; with "type": "module" you may rename it to suite.ts. Prefer JSON? Run \`behavtest init\`.
+import type { CodeSuite } from "behavtest"; // type-only: erased at runtime, so no local install is needed to run it
 
 // Replace this with a call into your real agent / RAG pipeline.
 async function answer(question: string): Promise<string> {

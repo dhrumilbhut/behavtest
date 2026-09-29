@@ -19,7 +19,7 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 const tmp = () => {
-  const d = mkdtempSync(join(tmpdir(), "regrade-code-"));
+  const d = mkdtempSync(join(tmpdir(), "behavtest-code-"));
   dirs.push(d);
   return d;
 };
@@ -225,7 +225,7 @@ describe("running code suites", () => {
   async function run(path: string) {
     const { suite, registry } = await loadSuiteFile(path);
     const store = new SqliteStore(":memory:");
-    const outcome = await runSuite({ suite, registry, store, regradeVersion: "test", env: {} });
+    const outcome = await runSuite({ suite, registry, store, behavtestVersion: "test", env: {} });
     return { outcome, store };
   }
 
@@ -285,7 +285,7 @@ describe("running code suites", () => {
       suite: { name: "s", defaults: { timeoutMs: 120 }, pipeline: { adapter: "stubborn", config: {} }, cases: [{ id: "a", input: "i", scorers: ["latencyCost"] }] },
       registry,
       store,
-      regradeVersion: "t",
+      behavtestVersion: "t",
       env: {},
     });
     expect(outcome.attempts[0]?.status).toBe("errored");
@@ -307,7 +307,7 @@ describe("running code suites", () => {
     const store = new SqliteStore(":memory:");
     const runOnce = async (name: string, threshold: number) => {
       const { suite, registry } = await loadSuiteFile(writeSuite(dir, name, make(threshold)));
-      return runSuite({ suite, registry, store, regradeVersion: "t", env: {} });
+      return runSuite({ suite, registry, store, behavtestVersion: "t", env: {} });
     };
     const before = await runOnce("v1.mjs", 3); // passes
     const after = await runOnce("v2.mjs", 9); // the scorer got stricter, so the case now fails

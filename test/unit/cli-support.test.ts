@@ -18,7 +18,7 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 const tmp = () => {
-  const d = mkdtempSync(join(tmpdir(), "regrade-cli-"));
+  const d = mkdtempSync(join(tmpdir(), "behavtest-cli-"));
   dirs.push(d);
   return d;
 };
@@ -36,7 +36,7 @@ function runRecord(over: Partial<RunRecord> = {}): RunRecord {
     startedAt: "2026-09-21T00:00:00.000Z",
     finishedAt: "2026-09-21T00:00:01.000Z",
     status: "completed",
-    regradeVersion: "0.1.0",
+    behavtestVersion: "0.1.0",
     gitSha: null,
     gitDirty: null,
     label: null,
@@ -51,7 +51,7 @@ describe("console reporter", () => {
 
   it("prints a header, one line per attempt, and a summary (no ANSI when colour is off)", () => {
     const cap = capture();
-    const rep = createConsoleReporter({ version: "9.9.9", out: cap.out, color: false, dbPath: ".regrade/results.db" });
+    const rep = createConsoleReporter({ version: "9.9.9", out: cap.out, color: false, dbPath: ".behavtest/results.db" });
     const passed = attempt({ caseId: "capital", latencyMs: 412, scores: [{ scorerName: "exactMatch", pass: true, value: 1 }, { scorerName: "llmJudge", pass: true, value: 1 }] });
     const failed = attempt({
       caseId: "latency",
@@ -68,13 +68,13 @@ describe("console reporter", () => {
     const text = cap.text();
     // eslint-disable-next-line no-control-regex
     expect(text).not.toMatch(/\u001b\[/);
-    expect(text).toContain("regrade 9.9.9 · demo · http → localhost:4000/pipeline · judge anthropic:claude-sonnet-5");
+    expect(text).toContain("behavtest 9.9.9 · demo · http → localhost:4000/pipeline · judge anthropic:claude-sonnet-5");
     expect(text).toMatch(/✓ capital\s+412 ms\s+exactMatch ✓\s+llmJudge ✓/);
     expect(text).toMatch(/✗ latency\s+3,204 ms\s+latencyCost ✗ \(latency 3204 ms exceeds maxLatencyMs 3000 by 204 ms\)/);
     expect(text).toContain("cases 2 · passed 1 · failed 1 · flaky 0 · errored 0");
     expect(text).toContain("latency avg 1,808 ms · p95 3,204 ms");
     expect(text).toContain("1 of 2 cases did not pass.");
-    expect(text).toContain("run 3f9c1a2e saved → .regrade/results.db");
+    expect(text).toContain("run 3f9c1a2e saved → .behavtest/results.db");
   });
 
   it("shows errors, flaky cases and attempt numbers when repeating", () => {
@@ -104,7 +104,7 @@ describe("console reporter", () => {
     rep.onRunStart!(info);
     rep.onWarning!("late");
     const text = cap.text();
-    expect(text.indexOf("regrade 1")).toBeLessThan(text.indexOf("warning: early"));
+    expect(text.indexOf("behavtest 1")).toBeLessThan(text.indexOf("warning: early"));
     expect(text).toContain("warning: late");
   });
 
@@ -157,30 +157,30 @@ describe("init", () => {
   it("scaffolds a suite and mock pipeline, and git-ignores the results directory", () => {
     const cwd = tmp();
     const lines: string[] = [];
-    const r = initCommand({ dir: "regrade", cwd, log: (l) => lines.push(l) });
-    expect(r.written).toEqual(["regrade/suite.json", "regrade/mock-pipeline.mjs", ".gitignore (added .regrade/)"]);
-    expect(readFileSync(join(cwd, "regrade", "suite.json"), "utf8")).toBe(INIT_SUITE);
-    expect(readFileSync(join(cwd, ".gitignore"), "utf8")).toBe(".regrade/\n");
-    expect(lines.join("\n")).toContain("regrade run regrade/suite.json");
+    const r = initCommand({ dir: "behavtest", cwd, log: (l) => lines.push(l) });
+    expect(r.written).toEqual(["behavtest/suite.json", "behavtest/mock-pipeline.mjs", ".gitignore (added .behavtest/)"]);
+    expect(readFileSync(join(cwd, "behavtest", "suite.json"), "utf8")).toBe(INIT_SUITE);
+    expect(readFileSync(join(cwd, ".gitignore"), "utf8")).toBe(".behavtest/\n");
+    expect(lines.join("\n")).toContain("behavtest run behavtest/suite.json");
   });
 
   it("does not overwrite existing files without --force, and does not duplicate the gitignore entry", () => {
     const cwd = tmp();
-    initCommand({ dir: "regrade", cwd, log: () => {} });
-    writeFileSync(join(cwd, "regrade", "suite.json"), "mine");
-    const again = initCommand({ dir: "regrade", cwd, log: () => {} });
-    expect(again.skipped).toContain("regrade/suite.json");
-    expect(readFileSync(join(cwd, "regrade", "suite.json"), "utf8")).toBe("mine");
-    expect(readFileSync(join(cwd, ".gitignore"), "utf8")).toBe(".regrade/\n");
-    initCommand({ dir: "regrade", cwd, force: true, log: () => {} });
-    expect(readFileSync(join(cwd, "regrade", "suite.json"), "utf8")).toBe(INIT_SUITE);
+    initCommand({ dir: "behavtest", cwd, log: () => {} });
+    writeFileSync(join(cwd, "behavtest", "suite.json"), "mine");
+    const again = initCommand({ dir: "behavtest", cwd, log: () => {} });
+    expect(again.skipped).toContain("behavtest/suite.json");
+    expect(readFileSync(join(cwd, "behavtest", "suite.json"), "utf8")).toBe("mine");
+    expect(readFileSync(join(cwd, ".gitignore"), "utf8")).toBe(".behavtest/\n");
+    initCommand({ dir: "behavtest", cwd, force: true, log: () => {} });
+    expect(readFileSync(join(cwd, "behavtest", "suite.json"), "utf8")).toBe(INIT_SUITE);
   });
 
   it("appends to an existing .gitignore that lacks a trailing newline", () => {
     const cwd = tmp();
     writeFileSync(join(cwd, ".gitignore"), "node_modules");
-    initCommand({ dir: "regrade", cwd, log: () => {} });
-    expect(readFileSync(join(cwd, ".gitignore"), "utf8")).toBe("node_modules\n.regrade/\n");
+    initCommand({ dir: "behavtest", cwd, log: () => {} });
+    expect(readFileSync(join(cwd, ".gitignore"), "utf8")).toBe("node_modules\n.behavtest/\n");
   });
 
   it("scaffolded suite is valid", () => {
@@ -198,7 +198,7 @@ describe("init", () => {
 describe("suite JSON Schema", () => {
   it("describes the suite and is strict about unknown keys", () => {
     const schema = buildSuiteJsonSchema() as { title: string; type: string; required: string[]; additionalProperties: boolean; properties: Record<string, unknown> };
-    expect(schema.title).toBe("Regrade test suite");
+    expect(schema.title).toBe("BehavTest test suite");
     expect(schema.type).toBe("object");
     expect(schema.required).toEqual(expect.arrayContaining(["name", "pipeline", "cases"]));
     expect(schema.additionalProperties).toBe(false);

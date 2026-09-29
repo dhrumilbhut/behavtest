@@ -37,9 +37,9 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-describe("regrade calibrate (built binary)", () => {
+describe("behavtest calibrate (built binary)", () => {
   it("measures the judge against labels from a real run, gates on kappa, and rejects a bad labels file", async () => {
-    const cwd = mkdtempSync(join(tmpdir(), "regrade-e2e5-"));
+    const cwd = mkdtempSync(join(tmpdir(), "behavtest-e2e5-"));
     dirs.push(cwd);
     writeFileSync(
       join(cwd, "suite.json"),

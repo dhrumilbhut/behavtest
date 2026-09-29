@@ -39,7 +39,7 @@ export async function loadSuiteFile(path: string, base: Registry = createRegistr
   if (TS_EXT.has(ext) && !canImportTypeScript()) {
     throw new ConfigError(
       `Cannot load ${path}: this Node.js (${process.version}) cannot import TypeScript files. ` +
-        "Regrade needs Node.js 24 or newer (native TypeScript support). Upgrade Node, or write the suite as .mjs or .json.",
+        "BehavTest needs Node.js 24 or newer (native TypeScript support). Upgrade Node, or write the suite as .mjs or .json.",
     );
   }
 
@@ -53,7 +53,7 @@ export async function loadSuiteFile(path: string, base: Registry = createRegistr
     const hint = moduleTypeProblem
       ? ' Node is treating this file as CommonJS because your package.json does not say "type": "module". Rename it to .mts / .mjs, or set "type": "module" in package.json. Local helper files need the same treatment.'
       : code === "ERR_MODULE_NOT_FOUND"
-        ? " If it imports another TypeScript file, write the extension in the import (\"./helpers.ts\"). If it imports \"regrade\", install it in your project (npm i -D regrade) or use `import type`."
+        ? " If it imports another TypeScript file, write the extension in the import (\"./helpers.ts\"). If it imports \"behavtest\", install it in your project (npm i -D behavtest) or use `import type`."
         : "";
     throw new ConfigError(`Failed to load suite module ${path}: ${errorMessage(err)}.${hint}`, { cause: err });
   }

@@ -15,7 +15,7 @@ const run = (runId: string, attempts: AttemptRecord[]): RunRecord => ({
   startedAt: "2026-09-23T10:00:00.000Z",
   finishedAt: "2026-09-23T10:00:05.000Z",
   status: "completed",
-  regradeVersion: "0.4.0",
+  behavtestVersion: "0.4.0",
   gitSha: "abc1234",
   gitDirty: false,
   label: "prompt-v7",
@@ -68,7 +68,7 @@ const head = run("head-run", headAttempts);
 
 describe("run files", () => {
   it("round-trips a full run exactly", () => {
-    const file = buildRunFile(base, baseAttempts, { regradeVersion: "0.4.0" });
+    const file = buildRunFile(base, baseAttempts, { behavtestVersion: "0.4.0" });
     const loaded = parseRunFile(serializeRunFile(file), "base.json");
     expect(loaded.run).toEqual(base);
     expect(loaded.attempts).toEqual(baseAttempts);
@@ -76,7 +76,7 @@ describe("run files", () => {
   });
 
   it("a compact file contains no inputs, expected answers, outputs, error text, reasoning or scorer config", () => {
-    const text = serializeRunFile(buildRunFile(base, baseAttempts, { regradeVersion: "0.4.0", compact: true }));
+    const text = serializeRunFile(buildRunFile(base, baseAttempts, { behavtestVersion: "0.4.0", compact: true }));
     expect(text).not.toContain(SECRET_INPUT);
     expect(text).not.toContain(SECRET_OUTPUT);
     expect(text).not.toContain("30-day policy");
@@ -86,30 +86,42 @@ describe("run files", () => {
     for (const a of json.attempts) {
       for (const k of ["input", "expected", "output", "error"]) expect(a).not.toHaveProperty(k);
     }
-    expect(text.length).toBeLessThan(serializeRunFile(buildRunFile(base, baseAttempts, { regradeVersion: "0.4.0" })).length);
+    expect(text.length).toBeLessThan(serializeRunFile(buildRunFile(base, baseAttempts, { behavtestVersion: "0.4.0" })).length);
   });
 
   it("comparing against a compact baseline gives exactly the result of comparing against the full run", () => {
-    const compact = parseRunFile(serializeRunFile(buildRunFile(base, baseAttempts, { regradeVersion: "0.4.0", compact: true })), "b.json");
+    const compact = parseRunFile(serializeRunFile(buildRunFile(base, baseAttempts, { behavtestVersion: "0.4.0", compact: true })), "b.json");
     const viaFile = compareRuns({ base: compact, head: { run: head, attempts: headAttempts } });
     const direct = compareRuns({ base: { run: base, attempts: baseAttempts }, head: { run: head, attempts: headAttempts } });
     expect(viaFile).toEqual(direct);
     expect(direct.counts).toMatchObject({ regressed: 1, improved: 1, errored: 1, unchanged: 1 });
   });
 
+  it("reads run files written by Regrade (the former name): old kind and version field", () => {
+    const file = JSON.parse(serializeRunFile(buildRunFile(base, baseAttempts, { behavtestVersion: "0.7.1" })));
+    const legacy = { ...file, kind: "regrade.run", regradeVersion: file.behavtestVersion, run: { ...file.run, regradeVersion: file.run.behavtestVersion } };
+    delete legacy.behavtestVersion;
+    delete legacy.run.behavtestVersion;
+    const loaded = parseRunFile(JSON.stringify(legacy), "regrade.baseline.json");
+    expect(loaded.run.behavtestVersion).toBe(base.behavtestVersion);
+    expect(loaded.run).not.toHaveProperty("regradeVersion");
+    expect(loaded).toEqual(parseRunFile(JSON.stringify(file), "regrade.baseline.json"));
+    expect(file.kind).toBe("behavtest.run");
+  });
+
   it("rejects what is not a run file, with an actionable message", () => {
     expect(() => parseRunFile("{nope", "x.json")).toThrow(/"x.json" is not valid JSON/);
     const report = JSON.stringify(buildRunReport(base, baseAttempts));
-    expect(() => parseRunFile(report, "r.json")).toThrow(/not a Regrade run file.*--json. report cannot be used/s);
-    const file = JSON.parse(serializeRunFile(buildRunFile(base, baseAttempts, { regradeVersion: "0.4.0" })));
-    expect(() => parseRunFile(JSON.stringify({ ...file, schemaVersion: 2 }), "new.json")).toThrow(/newer Regrade.*Upgrade/);
+    expect(() => parseRunFile(report, "r.json")).toThrow(/not a BehavTest run file.*--json. report cannot be used/s);
+    const file = JSON.parse(serializeRunFile(buildRunFile(base, baseAttempts, { behavtestVersion: "0.4.0" })));
+    expect(() => parseRunFile(JSON.stringify({ ...file, schemaVersion: 2 }), "new.json")).toThrow(/newer BehavTest.*Upgrade/);
     delete file.attempts[1].caseHash;
     expect(() => parseRunFile(JSON.stringify(file), "bad.json")).toThrow(/attempts\.1\.caseHash/);
     expect(() => parseRunFile("{}", "e.json")).toThrow(ConfigError);
   });
 
   it("accepts fields added by later versions of the same format", () => {
-    const file = JSON.parse(serializeRunFile(buildRunFile(base, baseAttempts, { regradeVersion: "0.4.0" })));
+    const file = JSON.parse(serializeRunFile(buildRunFile(base, baseAttempts, { behavtestVersion: "0.4.0" })));
     file.somethingNew = 1;
     file.attempts[0].trace = [{ kind: "tool", name: "search" }];
     expect(parseRunFile(JSON.stringify(file), "f.json").attempts).toHaveLength(baseAttempts.length);

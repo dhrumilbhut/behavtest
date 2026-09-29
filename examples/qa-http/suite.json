@@ -1,7 +1,7 @@
 {
-  "$schema": "https://unpkg.com/regrade/schema/suite.schema.json",
+  "$schema": "https://unpkg.com/behavtest/schema/suite.schema.json",
   "name": "sample-qa-suite",
-  "description": "Smoke test suite for Regrade itself. Needs ANTHROPIC_API_KEY for the llmJudge scorer.",
+  "description": "Smoke test suite for BehavTest itself. Needs ANTHROPIC_API_KEY for the llmJudge scorer.",
   "defaults": { "judge": "anthropic:claude-sonnet-5" },
   "pipeline": {
     "adapter": "http",

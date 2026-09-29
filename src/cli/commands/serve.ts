@@ -4,7 +4,7 @@ import { ConfigError, errorMessage } from "../../core/errors.js";
 import { isLoopback, startDashboard } from "../../serve/server.js";
 import { VERSION } from "../version.js";
 import { openExistingStore } from "./common.js";
-import { DEFAULT_DB_PATH } from "./run.js";
+import { resolveDbPath } from "./run.js";
 
 export interface ServeOptions {
   db?: string;
@@ -29,7 +29,7 @@ function openBrowser(url: string): void {
 
 /** Serve the dashboard until Ctrl+C. Resolves once the server has stopped. */
 export async function serveCommand(o: ServeOptions): Promise<number> {
-  const db = o.db ?? DEFAULT_DB_PATH;
+  const db = resolveDbPath(o.db);
   const host = o.host ?? "127.0.0.1";
   const store = openExistingStore(db);
   let dash;
@@ -42,7 +42,7 @@ export async function serveCommand(o: ServeOptions): Promise<number> {
     if (code === "EADDRNOTAVAIL" || code === "ENOTFOUND") throw new ConfigError(`Cannot listen on host "${host}": ${errorMessage(err)}`);
     throw err;
   }
-  process.stdout.write(`${pc.bold("regrade serve")} · ${db}\n  dashboard → ${pc.cyan(dash.url)}\n  press Ctrl+C to stop\n`);
+  process.stdout.write(`${pc.bold("behavtest serve")} · ${db}\n  dashboard → ${pc.cyan(dash.url)}\n  press Ctrl+C to stop\n`);
   if (!isLoopback(host)) {
     process.stderr.write(
       pc.yellow(

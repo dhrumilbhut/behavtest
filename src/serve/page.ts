@@ -1,5 +1,5 @@
 /**
- * The `regrade serve` dashboard: one HTML page (the report's styles and UI library plus the app below)
+ * The `behavtest serve` dashboard: one HTML page (the report's styles and UI library plus the app below)
  * that reads the JSON API. Same rules as the report assets: no backticks or `${` inside the CSS/JS
  * strings, and run data is only ever inserted as text.
  */
@@ -73,10 +73,10 @@ td a.rid { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; fon
 const DASH_APP = String.raw`
 (function () {
   'use strict';
-  var U = RegradeUI, h = U.h;
+  var U = BehavTestUI, h = U.h;
   var app = document.getElementById('app');
   var CFG = {};
-  try { CFG = JSON.parse(document.getElementById('regrade-config').textContent); } catch (e) {}
+  try { CFG = JSON.parse(document.getElementById('behavtest-config').textContent); } catch (e) {}
   var enc = encodeURIComponent;
   var SVGNS = 'http://www.w3.org/2000/svg';
 
@@ -108,7 +108,7 @@ const DASH_APP = String.raw`
   function nav(current) {
     function tab(href, label, key) { return h('a', { class: 'tab', href: href, 'aria-current': current === key ? 'page' : null, text: label }); }
     return h('nav', { class: 'nav', 'aria-label': 'Dashboard' },
-      h('a', { class: 'brand', href: '#/', text: 'Regrade' }),
+      h('a', { class: 'brand', href: '#/', text: 'BehavTest' }),
       tab('#/', 'Runs', 'runs'), tab('#/compare', 'Compare', 'compare'), tab('#/matrices', 'Matrix', 'matrices'), tab('#/calibration', 'Calibration', 'calibration'),
       h('span', { class: 'spacer' }),
       CFG.db ? h('span', { class: 'db', title: 'Results database', text: CFG.db }) : null,
@@ -116,7 +116,7 @@ const DASH_APP = String.raw`
   }
   function page(current, kids) {
     var wrap = h('div', { class: 'wrap' }, nav(current), kids,
-      h('footer', { text: 'Regrade ' + (CFG.version || '') + ' dashboard · serving your results database from this machine. Runs start from the CLI: regrade run <suite>.' }));
+      h('footer', { text: 'BehavTest ' + (CFG.version || '') + ' dashboard · serving your results database from this machine. Runs start from the CLI: behavtest run <suite>.' }));
     app.textContent = '';
     app.appendChild(wrap);
     return wrap;
@@ -296,7 +296,7 @@ const DASH_APP = String.raw`
       var after = root.querySelector('footer');
       if (!suites.length) {
         root.insertBefore(h('div', { class: 'card empty' },
-          h('p', null, 'No runs in this database yet. Run a suite, then refresh: '), h('p', null, h('code', { text: 'regrade run <suite>' }))), after);
+          h('p', null, 'No runs in this database yet. Run a suite, then refresh: '), h('p', null, h('code', { text: 'behavtest run <suite>' }))), after);
         return;
       }
       var sel = h('select', { class: 'pick', 'aria-label': 'Suite' },
@@ -398,7 +398,7 @@ const DASH_APP = String.raw`
         labels.onChange = function () { count.textContent = labels.count() + ' labelled in this run'; };
         labels.onChange();
         bar = h('div', { class: 'labels' },
-          h('span', { class: 'lh', text: 'Check the judge: mark judged answers Pass or Fail yourself. Labels save to the results database as you click; regrade calibrate reads them.' }),
+          h('span', { class: 'lh', text: 'Check the judge: mark judged answers Pass or Fail yourself. Labels save to the results database as you click; behavtest calibrate reads them.' }),
           count, h('a', { class: 'btn', href: '#/calibration', text: 'Calibration' }));
       }
       var cases = U.casesSection(D.cases, {
@@ -554,7 +554,7 @@ const DASH_APP = String.raw`
         h('p', { class: 'meta', style: 'margin:-12px 0 20px', text: C.labels + ' labels, ' + C.used + ' matched to stored verdicts' + (skipped.length ? ' · ' + skipped.join(' · ') : '') }),
         h('div', { class: 'cal-grid' }, cards),
         h('section', { class: 'block' }, h('h2', { class: 'sec', text: 'Where the judge disagreed with you' }), disTable),
-        h('p', { class: 'info' }, 'Gate on it in CI: ', h('code', { text: 'regrade calibrate --min-kappa 0.6' }), ' exits 1 unless every judge has at least 30 labels and kappa at or above 0.6.')), holder);
+        h('p', { class: 'info' }, 'Gate on it in CI: ', h('code', { text: 'behavtest calibrate --min-kappa 0.6' }), ' exits 1 unless every judge has at least 30 labels and kappa at or above 0.6.')), holder);
     }, function (err) { if (live()) root.replaceChild(failed(err), root.querySelector('.loading')); });
   }
 
@@ -578,7 +578,7 @@ const DASH_APP = String.raw`
     else if (parts[0] === 'calibration') calibrationPage(live);
     else runsPage(q, live);
     var t = { runs: 'Run', compare: 'Compare', matrices: 'Matrix', calibration: 'Calibration' }[parts[0]];
-    document.title = 'Regrade' + (t ? ' · ' + t : ' · Runs');
+    document.title = 'BehavTest' + (t ? ' · ' + t : ' · Runs');
   }
   window.addEventListener('hashchange', route);
   route();
@@ -606,13 +606,13 @@ export function renderDashboard(opts: DashboardPageOptions): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="referrer" content="no-referrer">
-<title>Regrade</title>
+<title>BehavTest</title>
 <script>${EARLY_THEME_JS}</script>
 <style>${CSS}${DASH_CSS}</style>
 </head>
 <body>
-<div id="app"><div class="wrap"><p class="meta">Loading the Regrade ${escapeHtml(opts.version)} dashboard…</p><noscript><p class="meta">The dashboard needs JavaScript.</p></noscript></div></div>
-<script type="application/json" id="regrade-config">${config}</script>
+<div id="app"><div class="wrap"><p class="meta">Loading the BehavTest ${escapeHtml(opts.version)} dashboard…</p><noscript><p class="meta">The dashboard needs JavaScript.</p></noscript></div></div>
+<script type="application/json" id="behavtest-config">${config}</script>
 <script>${UI_LIB}${DASH_APP}</script>
 </body>
 </html>

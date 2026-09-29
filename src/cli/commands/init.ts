@@ -38,11 +38,11 @@ export function initCommand(opts: InitOptions): { written: string[]; skipped: st
   }
 
   const gitignore = join(cwd, ".gitignore");
-  const entry = ".regrade/";
+  const entry = ".behavtest/";
   const current = existsSync(gitignore) ? readFileSync(gitignore, "utf8") : "";
-  if (!current.split(/\r?\n/).some((l) => l.trim() === entry || l.trim() === ".regrade")) {
+  if (!current.split(/\r?\n/).some((l) => l.trim() === entry || l.trim() === ".behavtest")) {
     appendFileSync(gitignore, `${current && !current.endsWith("\n") ? "\n" : ""}${entry}\n`);
-    written.push(".gitignore (added .regrade/)");
+    written.push(".gitignore (added .behavtest/)");
   }
 
   for (const w of written) log(`  created ${w}`);
@@ -50,10 +50,10 @@ export function initCommand(opts: InitOptions): { written: string[]; skipped: st
   log("");
   log("Next:");
   if (opts.ts) {
-    log(`  regrade run ${opts.dir}/suite.mts     # no server or API key required`);
+    log(`  behavtest run ${opts.dir}/suite.mts     # no server or API key required`);
   } else {
     log(`  1. node ${opts.dir}/mock-pipeline.mjs      # start the mock pipeline (leave running)`);
-    log(`  2. regrade run ${opts.dir}/suite.json      # in another terminal`);
+    log(`  2. behavtest run ${opts.dir}/suite.json      # in another terminal`);
   }
   return { written, skipped };
 }

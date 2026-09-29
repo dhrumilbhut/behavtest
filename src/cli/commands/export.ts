@@ -4,7 +4,7 @@ import { buildRunFile, readRunFile, serializeRunFile, writeRunFile } from "../..
 import { SqliteStore } from "../../store/sqliteStore.js";
 import { VERSION } from "../version.js";
 import { loadRun, openExistingStore } from "./common.js";
-import { DEFAULT_DB_PATH } from "./run.js";
+import { resolveDbPath } from "./run.js";
 
 export interface ExportOptions {
   db?: string;
@@ -17,7 +17,7 @@ export function exportCommand(runRef: string, o: ExportOptions): void {
   const store = openExistingStore(o.db);
   try {
     const { run, attempts } = loadRun(store, runRef, { traces: true });
-    const file = buildRunFile(run, attempts, { regradeVersion: VERSION, compact: o.compact });
+    const file = buildRunFile(run, attempts, { behavtestVersion: VERSION, compact: o.compact });
     if (!o.out) {
       process.stdout.write(serializeRunFile(file));
       return;
@@ -41,7 +41,7 @@ export function importCommand(path: string, o: ImportOptions): void {
       `"${path}" is a compact run file: it has no inputs or outputs, so it can be compared against but not imported.`,
     );
   }
-  const dbPath = o.db ?? DEFAULT_DB_PATH;
+  const dbPath = resolveDbPath(o.db);
   const store = new SqliteStore(dbPath);
   try {
     if (store.getRun(run.runId)?.runId === run.runId) {

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { ConfigError, errorMessage } from "../../core/errors.js";
 import { readGitInfo } from "../../core/git.js";
@@ -16,7 +16,25 @@ import { buildRunFile, writeRunFile } from "../../store/runFile.js";
 import { SqliteStore } from "../../store/sqliteStore.js";
 import { VERSION } from "../version.js";
 
-export const DEFAULT_DB_PATH = ".regrade/results.db";
+export const DEFAULT_DB_PATH = ".behavtest/results.db";
+/** Where Regrade, the project's former name, kept results. Used when it exists and the new path does not. */
+export const LEGACY_DB_PATH = ".regrade/results.db";
+
+let legacyNoticeShown = false;
+
+/** The database a command uses: `--db`, else the default, else an existing database from before the rename. */
+export function resolveDbPath(db: string | undefined): string {
+  if (db !== undefined) return db;
+  if (existsSync(DEFAULT_DB_PATH) || !existsSync(LEGACY_DB_PATH)) return DEFAULT_DB_PATH;
+  if (!legacyNoticeShown) {
+    legacyNoticeShown = true;
+    process.stderr.write(
+      `Using ${LEGACY_DB_PATH} (from Regrade, BehavTest's former name). To move it, rename the .regrade folder to .behavtest.
+`,
+    );
+  }
+  return LEGACY_DB_PATH;
+}
 
 export interface RunCommandOptions {
   db?: string;
@@ -69,7 +87,7 @@ export async function runCommand(suitePath: string, o: RunCommandOptions): Promi
   const { suite, registry } = await loadSuiteFile(suitePath);
   const prices = o.prices ? loadPrices(o.prices) : undefined;
 
-  const dbPath = o.db ?? DEFAULT_DB_PATH;
+  const dbPath = resolveDbPath(o.db);
   const store = new SqliteStore(dbPath);
   const controller = new AbortController();
   let interrupts = 0;
@@ -89,7 +107,7 @@ export async function runCommand(suitePath: string, o: RunCommandOptions): Promi
     if (suite.variants || (o.variant && o.variant.length > 0)) {
       const variants = selectVariants(suite, o.variant);
       if (o.export && variants.length > 1) {
-        throw new ConfigError("--export writes one run; a matrix makes one run per variant. Pick one with --variant, or export a run afterwards with `regrade export <run>`.");
+        throw new ConfigError("--export writes one run; a matrix makes one run per variant. Pick one with --variant, or export a run afterwards with `behavtest export <run>`.");
       }
       const overrides = {
         concurrency: o.concurrency, repeat: o.repeat, timeoutMs: o.timeout, tags: o.tag, caseIds: o.case, label: o.label,
@@ -103,7 +121,7 @@ export async function runCommand(suitePath: string, o: RunCommandOptions): Promi
 `,
       );
       const matrix = await runMatrix({
-        suite, registry, store, regradeVersion: VERSION, git: readGitInfo(), signal: controller.signal, overrides, variants: o.variant,
+        suite, registry, store, behavtestVersion: VERSION, git: readGitInfo(), signal: controller.signal, overrides, variants: o.variant,
         reporterFor: () => createConsoleReporter({ version: VERSION, color: o.color === false ? false : undefined, dbPath }),
       });
       if (matrix.runs.length > 1) {
@@ -126,7 +144,7 @@ ${renderMatrixConsole(report, { color: o.color === false ? false : undefined })}
       }
       if (o.export && matrix.runs[0]) {
         const r = matrix.runs[0];
-        writeRunFile(o.export, buildRunFile(store.getRun(r.run.runId) ?? r.run, r.attempts, { regradeVersion: VERSION, compact: o.compact }));
+        writeRunFile(o.export, buildRunFile(store.getRun(r.run.runId) ?? r.run, r.attempts, { behavtestVersion: VERSION, compact: o.compact }));
         process.stdout.write(`  run file → ${o.export}${o.compact ? " (compact)" : ""}
 `);
       }
@@ -143,7 +161,7 @@ ${renderMatrixConsole(report, { color: o.color === false ? false : undefined })}
       registry,
       store,
       reporter,
-      regradeVersion: VERSION,
+      behavtestVersion: VERSION,
       git: readGitInfo(),
       signal: controller.signal,
       overrides: {
@@ -179,7 +197,7 @@ ${renderMatrixConsole(report, { color: o.color === false ? false : undefined })}
     }
     if (o.export) {
       const run = store.getRun(outcome.run.runId) ?? outcome.run;
-      writeRunFile(o.export, buildRunFile(run, outcome.attempts, { regradeVersion: VERSION, compact: o.compact }));
+      writeRunFile(o.export, buildRunFile(run, outcome.attempts, { behavtestVersion: VERSION, compact: o.compact }));
       process.stdout.write(`  run file → ${o.export}${o.compact ? " (compact)" : ""}
 `);
     }

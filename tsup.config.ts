@@ -13,7 +13,7 @@ export default defineConfig([
     platform: "node",
     sourcemap: true,
     banner: { js: "#!/usr/bin/env node" },
-    define: { __REGRADE_VERSION__: JSON.stringify(pkg.version) },
+    define: { __BEHAVTEST_VERSION__: JSON.stringify(pkg.version) },
   },
   {
     entry: { index: "src/index.ts" },
@@ -22,6 +22,6 @@ export default defineConfig([
     platform: "node",
     dts: true,
     sourcemap: true,
-    define: { __REGRADE_VERSION__: JSON.stringify(pkg.version) },
+    define: { __BEHAVTEST_VERSION__: JSON.stringify(pkg.version) },
   },
 ]);

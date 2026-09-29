@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import Database from "better-sqlite3";
@@ -19,7 +19,7 @@ interface CliResult {
 function runCli(args: string[], opts: { cwd: string; env?: Record<string, string> }): Promise<CliResult> {
   return new Promise((resolvePromise, reject) => {
     const env: NodeJS.ProcessEnv = { ...process.env, NO_COLOR: "1", CI: "1", ...opts.env };
-    for (const k of ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "REGRADE_JUDGE", "ANTHROPIC_BASE_URL", "OPENAI_BASE_URL"]) {
+    for (const k of ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "BEHAVTEST_JUDGE", "ANTHROPIC_BASE_URL", "OPENAI_BASE_URL"]) {
       if (!(opts.env && k in opts.env)) delete env[k];
     }
     const child = spawn(process.execPath, [cli, ...args], { cwd: opts.cwd, env });
@@ -50,7 +50,7 @@ afterEach(async () => {
 });
 
 function workdir(): string {
-  const d = mkdtempSync(join(tmpdir(), "regrade-e2e-"));
+  const d = mkdtempSync(join(tmpdir(), "behavtest-e2e-"));
   dirs.push(d);
   return d;
 }
@@ -66,7 +66,7 @@ function writeSuite(dir: string, cases: unknown[], extra: Record<string, unknown
 
 const env = () => ({ PIPELINE_URL: mock.url });
 
-describe("regrade CLI (built binary)", () => {
+describe("behavtest CLI (built binary)", () => {
   it("prints its version and help, exiting 0", async () => {
     const cwd = workdir();
     const v = await runCli(["--version"], { cwd });
@@ -76,6 +76,27 @@ describe("regrade CLI (built binary)", () => {
     expect(h.code).toBe(0);
     expect(h.stdout).toContain("Exit codes:");
     expect(h.stdout).toContain("--repeat");
+  });
+
+  it("keeps using a .regrade/results.db from before the rename, with a notice, until it is moved", async () => {
+    const cwd = workdir();
+    const suite = writeSuite(cwd, [{ id: "capital", input: "What is the capital of France?", expected: "Paris", scorers: ["exactMatch"] }]);
+    expect((await runCli(["run", suite], { cwd, env: env() })).code).toBe(0);
+    renameSync(join(cwd, ".behavtest"), join(cwd, ".regrade"));
+
+    const again = await runCli(["run", suite], { cwd, env: env() });
+    expect(again.code).toBe(0);
+    expect(again.stderr).toContain("Using .regrade/results.db (from Regrade, BehavTest's former name)");
+    expect(again.stdout).toContain("saved → .regrade/results.db");
+    expect(existsSync(join(cwd, ".behavtest"))).toBe(false);
+    const runs = await runCli(["runs"], { cwd });
+    expect(runs.code).toBe(0);
+    expect(runs.stdout.match(/e2e-suite/g)).toHaveLength(2);
+
+    renameSync(join(cwd, ".regrade"), join(cwd, ".behavtest"));
+    const moved = await runCli(["runs"], { cwd });
+    expect(moved.stderr).toBe("");
+    expect(moved.stdout.match(/e2e-suite/g)).toHaveLength(2);
   });
 
   it("runs a passing suite: live output, exit 0, rows in SQLite, JSON report", async () => {
@@ -89,9 +110,9 @@ describe("regrade CLI (built binary)", () => {
     expect(r.code).toBe(0);
     expect(r.stdout).toMatch(/✓ capital\s+\d[\d,]* ms\s+exactMatch ✓\s+latencyCost ✓/);
     expect(r.stdout).toContain("All 2 cases passed.");
-    expect(r.stdout).toContain("saved → .regrade/results.db");
+    expect(r.stdout).toContain("saved → .behavtest/results.db");
 
-    const db = new Database(join(cwd, ".regrade", "results.db"), { readonly: true });
+    const db = new Database(join(cwd, ".behavtest", "results.db"), { readonly: true });
     expect(db.prepare("SELECT status FROM runs").pluck().all()).toEqual(["completed"]);
     expect(db.prepare("SELECT count(*) FROM results WHERE status = 'passed'").pluck().get()).toBe(2);
     expect(db.prepare("SELECT count(*) FROM scores").pluck().get()).toBe(3);
@@ -129,7 +150,7 @@ describe("regrade CLI (built binary)", () => {
     expect(r.code).toBe(1);
     expect(r.stdout).toContain("flaky #1/4");
     expect(r.stdout).toContain("flaky: flaky (2/4 attempts passed)");
-    const db = new Database(join(cwd, ".regrade", "results.db"), { readonly: true });
+    const db = new Database(join(cwd, ".behavtest", "results.db"), { readonly: true });
     expect(db.prepare("SELECT count(*) FROM results").pluck().get()).toBe(4);
     db.close();
   });
@@ -159,7 +180,7 @@ describe("regrade CLI (built binary)", () => {
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("judge anthropic:claude-sonnet-5 does not work");
     expect(r.stderr).toContain("--no-judge-check");
-    const db = new Database(join(cwd, ".regrade", "results.db"), { readonly: true });
+    const db = new Database(join(cwd, ".behavtest", "results.db"), { readonly: true });
     expect(db.prepare("SELECT COUNT(*) AS n FROM runs").get()).toEqual({ n: 0 });
     db.close();
     const skipped = await runCli(["run", suite, "--no-judge-check"], { cwd, env });
@@ -266,7 +287,7 @@ describe("regrade CLI (built binary)", () => {
     );
     const r = await runCli(["run", suite], { cwd, env: { ...env(), PIPELINE_TOKEN: "super-secret-token-123" } });
     expect(r.code).toBe(0);
-    const db = new Database(join(cwd, ".regrade", "results.db"), { readonly: true });
+    const db = new Database(join(cwd, ".behavtest", "results.db"), { readonly: true });
     const stored = JSON.stringify(db.prepare("SELECT * FROM runs").all());
     db.close();
     expect(stored).not.toContain("super-secret-token-123");
@@ -278,18 +299,18 @@ describe("regrade CLI (built binary)", () => {
     const cwd = workdir();
     const init = await runCli(["init"], { cwd });
     expect(init.code).toBe(0);
-    expect(existsSync(join(cwd, "regrade", "suite.json"))).toBe(true);
+    expect(existsSync(join(cwd, "behavtest", "suite.json"))).toBe(true);
 
     // start the scaffolded mock pipeline on a free port
     const port = 41000 + Math.floor(Math.random() * 1000);
-    const server = spawn(process.execPath, [join(cwd, "regrade", "mock-pipeline.mjs")], { env: { ...process.env, PORT: String(port) } });
+    const server = spawn(process.execPath, [join(cwd, "behavtest", "mock-pipeline.mjs")], { env: { ...process.env, PORT: String(port) } });
     try {
       await new Promise<void>((res, rej) => {
         server.stdout.on("data", (d) => String(d).includes("listening") && res());
         server.on("error", rej);
         setTimeout(() => rej(new Error("mock pipeline did not start")), 5000);
       });
-      const r = await runCli(["run", "regrade/suite.json"], { cwd, env: { PIPELINE_URL: `http://localhost:${port}/pipeline` } });
+      const r = await runCli(["run", "behavtest/suite.json"], { cwd, env: { PIPELINE_URL: `http://localhost:${port}/pipeline` } });
       expect(r.stdout).toContain("All 2 cases passed.");
       expect(r.code).toBe(0);
     } finally {
@@ -301,7 +322,7 @@ describe("regrade CLI (built binary)", () => {
     const cwd = workdir();
     const r = await runCli(["schema"], { cwd });
     expect(r.code).toBe(0);
-    expect(JSON.parse(r.stdout).title).toBe("Regrade test suite");
+    expect(JSON.parse(r.stdout).title).toBe("BehavTest test suite");
     mkdirSync(join(cwd, "s"));
     await runCli(["schema", "--out", "s/x.json"], { cwd });
     expect(JSON.parse(readFileSync(join(cwd, "s", "x.json"), "utf8")).properties.cases).toBeDefined();
@@ -322,7 +343,7 @@ describe("regrade CLI (built binary)", () => {
     const code = await new Promise<number | null>((res) => child.on("close", res));
     expect(code).toBe(130);
     expect(out).toContain("partial results saved");
-    const db = new Database(join(cwd, ".regrade", "results.db"), { readonly: true });
+    const db = new Database(join(cwd, ".behavtest", "results.db"), { readonly: true });
     expect(db.prepare("SELECT status FROM runs").pluck().get()).toBe("interrupted");
     expect(db.prepare("SELECT case_id FROM results").pluck().all()).toEqual(["fast"]);
     db.close();

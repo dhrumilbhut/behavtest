@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 const workdir = () => {
-  const d = mkdtempSync(join(tmpdir(), "regrade-e2e2-"));
+  const d = mkdtempSync(join(tmpdir(), "behavtest-e2e2-"));
   dirs.push(d);
   return d;
 };
@@ -66,7 +66,7 @@ function writeSuite(dir: string, name: string, expectedFor: (i: number) => strin
 const env = () => ({ PIPELINE_URL: mock.url });
 const runId = (out: string): string => /run ([0-9a-f]{8}) saved/.exec(out)?.[1] ?? "";
 
-describe("regrade runs / show / compare / report (built binary)", () => {
+describe("behavtest runs / show / compare / report (built binary)", () => {
   it("two runs of an unchanged pipeline: compare reports no regressions and the gate passes", async () => {
     const cwd = workdir();
     const suite = writeSuite(cwd, "s", () => "4");
@@ -75,7 +75,7 @@ describe("regrade runs / show / compare / report (built binary)", () => {
 
     const r = await runCli(["compare", "--fail-on-regression"], cwd);
     expect(r.code).toBe(0);
-    expect(r.stdout).toContain("regrade compare · compare-suite");
+    expect(r.stdout).toContain("behavtest compare · compare-suite");
     expect(r.stdout).toContain("before");
     expect(r.stdout).toContain("after");
     expect(r.stdout).toContain("regressed 0");
@@ -165,19 +165,19 @@ describe("regrade runs / show / compare / report (built binary)", () => {
     const json = JSON.parse(readFileSync(join(cwd, "out", "c.json"), "utf8"));
     expect(json.schemaVersion).toBe(1);
     expect(json.comparison.counts.unchanged).toBe(6);
-    expect(readFileSync(join(cwd, "out", "c.md"), "utf8")).toContain("## Regrade compare · compare-suite");
+    expect(readFileSync(join(cwd, "out", "c.md"), "utf8")).toContain("## BehavTest compare · compare-suite");
 
     const rep = await runCli(["report", runId(b.stdout), "--against", runId(a.stdout), "--out", "out/report.html"], cwd);
     expect(rep.code).toBe(0);
     expect(rep.stdout).toContain("single self-contained file");
     const html = readFileSync(join(cwd, "out", "report.html"), "utf8");
-    expect(html).toContain("<title>Regrade · compare-suite</title>");
+    expect(html).toContain("<title>BehavTest · compare-suite</title>");
     expect(html).toContain('"comparison":{');
     expect(html).not.toMatch(/(src|href)=["']https?:/);
 
     const solo = await runCli(["report", runId(a.stdout)], cwd);
     expect(solo.code).toBe(0);
-    expect(existsSync(join(cwd, "regrade-report.html"))).toBe(true);
+    expect(existsSync(join(cwd, "behavtest-report.html"))).toBe(true);
   });
 
   it("run --md writes a Markdown summary", async () => {
@@ -225,7 +225,7 @@ describe("regrade runs / show / compare / report (built binary)", () => {
         expect(r.code, args.join(" ")).toBe(2);
         expect(r.stderr).toContain("No results database");
       }
-      expect(existsSync(join(cwd, ".regrade"))).toBe(false); // reading never creates an empty database
+      expect(existsSync(join(cwd, ".behavtest"))).toBe(false); // reading never creates an empty database
     });
 
     it("unknown run, and nothing earlier to compare with", async () => {

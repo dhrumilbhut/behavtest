@@ -1,7 +1,7 @@
 {
   "$schema": "../../schema/suite.schema.json",
   "name": "model-shootout",
-  "description": "Twelve short questions with one right answer, asked of several models. Run: regrade run examples/matrix/suite.json (needs OPENAI_API_KEY), then regrade matrix.",
+  "description": "Twelve short questions with one right answer, asked of several models. Run: behavtest run examples/matrix/suite.json (needs OPENAI_API_KEY), then behavtest matrix.",
   "pipeline": {
     "adapter": "openai",
     "config": {

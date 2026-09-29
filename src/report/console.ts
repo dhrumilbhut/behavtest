@@ -1,4 +1,5 @@
 import pc from "picocolors";
+import { envSetting } from "../core/env.js";
 import type { AttemptRecord, RunSummary } from "../core/types.js";
 import type { RunReporter } from "./types.js";
 
@@ -10,7 +11,7 @@ export interface ConsoleReporterOptions {
   color?: boolean;
   /** Shown in the final "saved" line. */
   dbPath?: string;
-  /** Use plain ASCII symbols. Default: REGRADE_ASCII=1. */
+  /** Use plain ASCII symbols. Default: BEHAVTEST_ASCII=1. */
   ascii?: boolean;
 }
 
@@ -47,7 +48,7 @@ export function createConsoleReporter(opts: ConsoleReporterOptions): RunReporter
   const out = opts.out ?? process.stdout;
   const color = opts.color ?? (Boolean(process.stdout.isTTY) && !process.env.NO_COLOR);
   const c = pc.createColors(color);
-  const ascii = opts.ascii ?? Boolean(process.env.REGRADE_ASCII);
+  const ascii = opts.ascii ?? Boolean(envSetting("ASCII"));
   const sym = ascii
     ? { ok: "PASS", bad: "FAIL", err: "ERR ", dot: "-", arrow: "->", flaky: "~" }
     : { ok: "✓", bad: "✗", err: "!", dot: "·", arrow: "→", flaky: "~" };
@@ -68,7 +69,7 @@ export function createConsoleReporter(opts: ConsoleReporterOptions): RunReporter
     onRunStart(info) {
       started = true;
       width = Math.min(40, Math.max(12, ...info.caseIds.map((id) => id.length + (info.repeat > 1 ? 6 : 0))));
-      const parts = [c.bold(`regrade ${opts.version}`), info.variant ? `${info.suiteName} [${info.variant}]` : info.suiteName, info.pipelineLabel];
+      const parts = [c.bold(`behavtest ${opts.version}`), info.variant ? `${info.suiteName} [${info.variant}]` : info.suiteName, info.pipelineLabel];
       if (info.judge) parts.push(`judge ${info.judge}`);
       line(parts.join(` ${sym.dot} `));
       line(

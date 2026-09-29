@@ -1,4 +1,5 @@
 import pc from "picocolors";
+import { envSetting } from "../core/env.js";
 import type { CaseComparison, Comparison, GateResult, OverallVerdict } from "../stats/compare.js";
 import { formatCost, formatMs } from "./console.js";
 import { CHANGE_LABEL, countsLine, pct, pctWithInterval, points, runLine } from "./format.js";
@@ -27,7 +28,7 @@ function outcome(c: CaseComparison): string {
 export function renderComparison(cmp: Comparison, opts: CompareRenderOptions = {}): string {
   const color = opts.color ?? (Boolean(process.stdout.isTTY) && !process.env.NO_COLOR);
   const c = pc.createColors(color);
-  const ascii = opts.ascii ?? Boolean(process.env.REGRADE_ASCII);
+  const ascii = opts.ascii ?? Boolean(envSetting("ASCII"));
   const sym = ascii
     ? { regressed: "FAIL", improved: "PASS", flaky: "~", errored: "ERR ", other: "-", arrow: "->", dash: "-" }
     : { regressed: "✗", improved: "✓", flaky: "~", errored: "!", other: "·", arrow: "→", dash: "–" };
@@ -49,7 +50,7 @@ export function renderComparison(cmp: Comparison, opts: CompareRenderOptions = {
     }
   };
 
-  line(`${c.bold("regrade compare")} ${sym.other} ${cmp.head.suiteName}`);
+  line(`${c.bold("behavtest compare")} ${sym.other} ${cmp.head.suiteName}`);
   line(`  base  ${runLine(cmp.base)}`);
   line(`  head  ${runLine(cmp.head)}`);
   for (const w of cmp.warnings) line(`  ${c.yellow("warning:")} ${w}`);

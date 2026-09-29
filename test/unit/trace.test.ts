@@ -191,7 +191,7 @@ describe("traces through the runner and the store", () => {
     const suite = httpSuite(mock.url, [
       { id: "agent", input: "AGENT", scorers: ["toolCalled", "maxSteps"], scorerConfig: { toolCalled: { tool: "lookup_order", argsInclude: { orderId: 123 } }, maxSteps: { max: 6 } } },
     ]);
-    const good = await runSuite({ suite, registry: registry(), store, regradeVersion: "t", env: {} });
+    const good = await runSuite({ suite, registry: registry(), store, behavtestVersion: "t", env: {} });
     expect(good.exitCode).toBe(0);
     expect(store.getAttempts(good.run.runId)[0]?.trace).toBeUndefined();
     const [stored] = store.getAttempts(good.run.runId, { traces: true });
@@ -201,7 +201,7 @@ describe("traces through the runner and the store", () => {
     expect(JSON.stringify(stored?.trace)).not.toContain("sk-live");
 
     const badSuite = httpSuite(`${mock.url}?mode=degraded`, suite.cases);
-    const bad = await runSuite({ suite: badSuite, registry: registry(), store, regradeVersion: "t", env: {} });
+    const bad = await runSuite({ suite: badSuite, registry: registry(), store, behavtestVersion: "t", env: {} });
     const scores = bad.attempts[0]?.scores ?? [];
     expect(scores.find((s) => s.scorerName === "toolCalled")).toMatchObject({ pass: false, value: 0 });
     expect(scores.find((s) => s.scorerName === "maxSteps")).toMatchObject({ pass: false, value: 7 });
@@ -211,7 +211,7 @@ describe("traces through the runner and the store", () => {
     mock = await startMockPipeline();
     store = new SqliteStore(":memory:");
     const suite = httpSuite(mock.url, [{ id: "agent", input: "AGENT", scorers: ["toolCalled"], scorerConfig: { toolCalled: { tool: "lookup_order" } } }]);
-    const out = await runSuite({ suite, registry: registry(), store, regradeVersion: "t", env: {}, overrides: { storeTraces: false } });
+    const out = await runSuite({ suite, registry: registry(), store, behavtestVersion: "t", env: {}, overrides: { storeTraces: false } });
     expect(out.exitCode).toBe(0);
     expect(store.getAttempts(out.run.runId, { traces: true })[0]?.trace).toBeUndefined();
   });
@@ -220,7 +220,7 @@ describe("traces through the runner and the store", () => {
     store = new SqliteStore(":memory:");
     const run: RunRecord = {
       runId: "r", suiteName: "s", suiteHash: "h", startedAt: "2026-09-23T00:00:00.000Z", finishedAt: null, status: "running",
-      regradeVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {}, summary: null,
+      behavtestVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {}, summary: null,
     };
     store.createRun(run);
     const usage = { inputTokens: 1, outputTokens: 2, cachedInputTokens: 3, cacheWriteTokens: 4, cacheWrite1hTokens: 1, reasoningTokens: 2 };
@@ -233,7 +233,7 @@ describe("showing traces", () => {
   const withTrace = (trace: TraceStep[]): AttemptRecord[] => [attempt({ caseId: "agent", trace })];
   const run = (attempts: AttemptRecord[]): RunRecord => ({
     runId: "r-1", suiteName: "s", suiteHash: "h", startedAt: "2026-09-23T00:00:00.000Z", finishedAt: null, status: "completed",
-    regradeVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {}, summary: summarize(attempts),
+    behavtestVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {}, summary: summarize(attempts),
   });
 
   it("show prints the step tree, and step inputs and outputs with --full", () => {
@@ -260,9 +260,9 @@ describe("showing traces", () => {
 
   it("run files carry traces in full, and never in compact form", () => {
     const a = withTrace(agentTrace);
-    const full = parseRunFile(serializeRunFile(buildRunFile(run(a), a, { regradeVersion: "t" })), "f.json");
+    const full = parseRunFile(serializeRunFile(buildRunFile(run(a), a, { behavtestVersion: "t" })), "f.json");
     expect(full.attempts[0]?.trace).toEqual(agentTrace);
-    const compact = serializeRunFile(buildRunFile(run(a), a, { regradeVersion: "t", compact: true }));
+    const compact = serializeRunFile(buildRunFile(run(a), a, { behavtestVersion: "t", compact: true }));
     expect(compact).not.toContain("lookup_order");
   });
 });

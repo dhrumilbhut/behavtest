@@ -5,20 +5,20 @@ import type { RunRecord } from "../../core/types.js";
 import { readRunFile, type LoadedRun } from "../../store/runFile.js";
 import { SqliteStore } from "../../store/sqliteStore.js";
 import type { Store } from "../../store/store.js";
-import { DEFAULT_DB_PATH } from "./run.js";
+import { resolveDbPath } from "./run.js";
 
 /** Open an existing results database for reading; never creates an empty one by accident. */
 export function openExistingStore(dbPath: string | undefined): SqliteStore {
-  const path = dbPath ?? DEFAULT_DB_PATH;
+  const path = resolveDbPath(dbPath);
   if (!existsSync(path)) {
-    throw new ConfigError(`No results database at "${path}". Run \`regrade run <suite>\` first, or pass --db <path>.`);
+    throw new ConfigError(`No results database at "${path}". Run \`behavtest run <suite>\` first, or pass --db <path>.`);
   }
   return new SqliteStore(path);
 }
 
 export function requireRun(store: Store, ref: string): RunRecord {
   const run = store.getRun(ref);
-  if (!run) throw new ConfigError(`No run matching "${ref}". Use \`regrade runs\` to list runs.`);
+  if (!run) throw new ConfigError(`No run matching "${ref}". Use \`behavtest runs\` to list runs.`);
   return run;
 }
 
@@ -44,7 +44,7 @@ export function pickComparison(store: Store, refs: string[], suite?: string): { 
   } else {
     const recent = store.listRuns({ suiteName: suite, limit: 1 })[0];
     if (!recent) {
-      throw new ConfigError(suite ? `No runs found for suite "${suite}".` : "No runs in the database yet. Run `regrade run <suite>` first.");
+      throw new ConfigError(suite ? `No runs found for suite "${suite}".` : "No runs in the database yet. Run `behavtest run <suite>` first.");
     }
     head = recent;
   }
@@ -55,7 +55,7 @@ export function pickComparison(store: Store, refs: string[], suite?: string): { 
   if (!previous) {
     throw new ConfigError(
       `There is no earlier run of "${head.suiteName}" to compare run ${head.runId.slice(0, 8)} against. ` +
-        "Run the suite again, or name two runs: `regrade compare <base> <head>`.",
+        "Run the suite again, or name two runs: `behavtest compare <base> <head>`.",
     );
   }
   return { base: previous, head };
@@ -97,7 +97,7 @@ export class RunSource {
       if (!latest) {
         throw new ConfigError(
           `No run of suite "${base.run.suiteName}" in the database to compare with ${refs[0]}. ` +
-            "Run the suite first, or name both runs: `regrade compare <base> <head>`.",
+            "Run the suite first, or name both runs: `behavtest compare <base> <head>`.",
         );
       }
       return { base, head: loadRun(this.store(), latest.runId) };

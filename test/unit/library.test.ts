@@ -17,7 +17,7 @@ afterEach(async () => {
 describe("library usage (mirrors the README example)", () => {
   it("runs a suite with a custom scorer registered on a fresh registry", async () => {
     mock = await startMockPipeline();
-    dir = mkdtempSync(join(tmpdir(), "regrade-lib-"));
+    dir = mkdtempSync(join(tmpdir(), "behavtest-lib-"));
     const suitePath = join(dir, "suite.json");
     writeFileSync(
       suitePath,
@@ -41,7 +41,7 @@ describe("library usage (mirrors the README example)", () => {
     });
     const suite = loadSuite(suitePath, registry);
     const store = new SqliteStore(join(dir, "results.db"));
-    const outcome = await runSuite({ suite, registry, store, regradeVersion: "custom" });
+    const outcome = await runSuite({ suite, registry, store, behavtestVersion: "custom" });
     // ----------------------------
 
     expect(outcome.cases.map((c) => [c.caseId, c.verdict])).toEqual([

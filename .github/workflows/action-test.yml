@@ -36,7 +36,7 @@ jobs:
           suite: suite.mjs
           working-directory: examples/github-action
           repeat: 3
-          artifact-name: regrade-healthy-${{ matrix.os }}
+          artifact-name: behavtest-healthy-${{ matrix.os }}
 
       - name: Breaking change fails
         id: broken
@@ -48,7 +48,7 @@ jobs:
           suite: suite.mjs
           working-directory: examples/github-action
           repeat: 3
-          artifact-name: regrade-broken-${{ matrix.os }}
+          artifact-name: behavtest-broken-${{ matrix.os }}
 
       - name: Check the outcomes
         shell: bash

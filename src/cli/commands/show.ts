@@ -58,7 +58,7 @@ export function renderRunSummary(run: RunRecord, attempts: AttemptRecord[], colo
   if (run.variant) out.push(`  variant  ${run.variant} (matrix ${run.matrixId?.slice(0, 8)})`);
   if (run.label) out.push(`  label    ${run.label}`);
   if (run.gitSha) out.push(`  git      ${run.gitSha.slice(0, 12)}${run.gitDirty ? " (uncommitted changes)" : ""}`);
-  out.push(`  regrade  ${run.regradeVersion}`);
+  out.push(`  version  behavtest ${run.behavtestVersion}`);
   const s = run.summary;
   if (s) {
     out.push(`  cases    passed ${s.cases.passed} · failed ${s.cases.failed} · flaky ${s.cases.flaky} · errored ${s.cases.errored}`);
@@ -72,7 +72,7 @@ export function renderRunSummary(run: RunRecord, attempts: AttemptRecord[], colo
     out.push(`  ${mark} ${k.verdict.padEnd(8)} ${k.caseId.padEnd(32)} ${passed}/${k.attempts.length} passed`);
   }
   out.push("");
-  out.push(c.dim("  regrade show <run> <case>   for a case's input, outputs, and scores"));
+  out.push(c.dim("  behavtest show <run> <case>   for a case's input, outputs, and scores"));
   return `${out.join("\n")}\n`;
 }
 

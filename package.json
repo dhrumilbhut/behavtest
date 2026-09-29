@@ -1,7 +1,7 @@
 {
-  "name": "regrade",
+  "name": "behavtest",
   "version": "0.7.1",
-  "description": "Regression testing for LLM apps, AI agents and RAG pipelines: run test cases through your pipeline, score answers (exact match, LLM-as-a-judge, latency, cost, tool calls), and fail CI when a prompt or model change makes results worse. Statistically honest, vendor-neutral, no infrastructure.",
+  "description": "Behavioral regression testing for AI applications: run test cases repeatedly through your LLM app, AI agent or RAG pipeline, score every answer, and use statistics to tell a real regression from noise. Vendor-neutral, local, no infrastructure. Previously named Regrade.",
   "keywords": [
     "llm",
     "llm-testing",
@@ -36,15 +36,15 @@
   "author": "Dhrumil Bhut",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dhrumilbhut/regrade.git"
+    "url": "git+https://github.com/dhrumilbhut/behavtest.git"
   },
-  "homepage": "https://github.com/dhrumilbhut/regrade#readme",
+  "homepage": "https://github.com/dhrumilbhut/behavtest#readme",
   "bugs": {
-    "url": "https://github.com/dhrumilbhut/regrade/issues"
+    "url": "https://github.com/dhrumilbhut/behavtest/issues"
   },
   "type": "module",
   "bin": {
-    "regrade": "dist/cli.js"
+    "behavtest": "dist/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

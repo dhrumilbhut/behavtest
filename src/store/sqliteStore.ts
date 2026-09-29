@@ -46,7 +46,7 @@ export class SqliteStore implements Store {
     if (current > LATEST_SCHEMA_VERSION) {
       this.db.close();
       throw new ConfigError(
-        `Database "${path}" has schema version ${current}, newer than this Regrade supports (${LATEST_SCHEMA_VERSION}). Upgrade Regrade.`,
+        `Database "${path}" has schema version ${current}, newer than this BehavTest supports (${LATEST_SCHEMA_VERSION}). Upgrade BehavTest.`,
       );
     }
     for (const m of migrations.filter((x) => x.version > current)) {
@@ -66,7 +66,7 @@ export class SqliteStore implements Store {
       .prepare(
         `INSERT INTO runs (run_id, suite_name, suite_hash, started_at, status, regrade_version,
                            git_sha, git_dirty, label, pipeline_json, matrix_id, variant)
-         VALUES (@runId, @suiteName, @suiteHash, @startedAt, 'running', @regradeVersion,
+         VALUES (@runId, @suiteName, @suiteHash, @startedAt, 'running', @behavtestVersion,
                  @gitSha, @gitDirty, @label, @pipeline, @matrixId, @variant)`,
       )
       .run({
@@ -74,7 +74,7 @@ export class SqliteStore implements Store {
         suiteName: run.suiteName,
         suiteHash: run.suiteHash,
         startedAt: run.startedAt,
-        regradeVersion: run.regradeVersion,
+        behavtestVersion: run.behavtestVersion,
         gitSha: run.gitSha,
         gitDirty: run.gitDirty === null ? null : run.gitDirty ? 1 : 0,
         label: run.label,
@@ -306,7 +306,8 @@ function mapRun(r: Row): RunRecord {
     startedAt: String(r.started_at),
     finishedAt: str(r.finished_at),
     status: r.status as RunStatus,
-    regradeVersion: String(r.regrade_version),
+    // the column keeps the name from when the project was called Regrade: renaming it would need a migration
+    behavtestVersion: String(r.regrade_version),
     gitSha: str(r.git_sha),
     gitDirty: r.git_dirty === null || r.git_dirty === undefined ? null : Number(r.git_dirty) === 1,
     label: str(r.label),

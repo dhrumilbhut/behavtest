@@ -1,5 +1,5 @@
 // A tiny stand-in for your AI pipeline: POST { "input": "..." } -> { "output": "..." }.
-// Run it with:  node regrade/mock-pipeline.mjs
+// Run it with:  node behavtest/mock-pipeline.mjs
 import { createServer } from "node:http";
 
 const answers = {

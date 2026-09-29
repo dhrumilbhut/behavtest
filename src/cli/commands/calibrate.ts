@@ -6,7 +6,7 @@ import { pct, pctWithInterval } from "../../report/format.js";
 import { colorFor, openExistingStore } from "./common.js";
 
 export interface CalibrateOptions {
-  /** A JSONL labels file; without it, the labels stored in the database (from `regrade serve`). */
+  /** A JSONL labels file; without it, the labels stored in the database (from `behavtest serve`). */
   labels?: string;
   db?: string;
   minKappa?: number;
@@ -38,7 +38,7 @@ export function renderCalibration(report: CalibrationReport, gate: CalibrationGa
     report.onErrored ? `${report.onErrored} on errored verdicts` : "",
     report.duplicates ? `${report.duplicates} duplicates (last one counts)` : "",
   ].filter(Boolean);
-  out.push(`${c.bold("regrade calibrate")} · ${report.labels} labels, ${report.used} matched${skipped.length ? ` · ${skipped.join(" · ")}` : ""}`);
+  out.push(`${c.bold("behavtest calibrate")} · ${report.labels} labels, ${report.used} matched${skipped.length ? ` · ${skipped.join(" · ")}` : ""}`);
   for (const u of report.unmatched.slice(0, 5)) out.push(c.dim(`  unmatched: run ${u.label.run} case ${u.label.case} #${u.label.attempt}: ${u.reason}`));
   if (report.unmatched.length > 5) out.push(c.dim(`  ...and ${report.unmatched.length - 5} more unmatched`));
   for (const g of report.groups) {
@@ -67,7 +67,7 @@ export function renderCalibrationMarkdown(report: CalibrationReport, gate: Calib
     `| ${g.scorer} | ${g.judge} | ${rubricText(g).replace(/\|/g, "\\|")} | ${g.n} | ${pctWithInterval(g.agreement)} | ${kappaText(g)} | ${g.falsePassRate === null ? "–" : pct(g.falsePassRate)} | ${g.falseFailRate === null ? "–" : pct(g.falseFailRate)} |`,
   );
   return [
-    "## Regrade judge calibration",
+    "## BehavTest judge calibration",
     "",
     `${report.labels} labels, ${report.used} matched to stored verdicts.`,
     "",
@@ -102,7 +102,7 @@ export function calibrateCommand(o: CalibrateOptions): number {
       fileLabels ??
       store.listLabels().map((l) => ({ run: l.runId, case: l.caseId, attempt: l.attempt, scorer: l.scorer, label: l.label, ...(l.note ? { note: l.note } : {}) }));
     if (labels.length === 0) {
-      throw new ConfigError("No labels stored in the database yet. Label judged answers in `regrade serve`, or pass --labels <file>.");
+      throw new ConfigError("No labels stored in the database yet. Label judged answers in `behavtest serve`, or pass --labels <file>.");
     }
     const report = calibrate(store, labels);
     const gate = o.minKappa === undefined ? undefined : calibrationGate(report, o.minKappa);

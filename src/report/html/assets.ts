@@ -9,7 +9,7 @@
  *   never innerHTML.
  */
 
-export const EARLY_THEME_JS = String.raw`try{var t=localStorage.getItem('regrade-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}`;
+export const EARLY_THEME_JS = String.raw`try{var t=(localStorage.getItem('behavtest-theme')||localStorage.getItem('regrade-theme'));if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}`;
 
 export const CSS = String.raw`
 :root {

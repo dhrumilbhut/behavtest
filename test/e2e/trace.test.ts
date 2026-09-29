@@ -44,7 +44,7 @@ afterEach(() => {
 });
 
 const workdir = () => {
-  const d = mkdtempSync(join(tmpdir(), "regrade-e2e4-"));
+  const d = mkdtempSync(join(tmpdir(), "behavtest-e2e4-"));
   dirs.push(d);
   return d;
 };
@@ -106,7 +106,7 @@ describe("traces (built binary)", () => {
     const cwd = workdir();
     const r = await runCli(["run", agentSuite(cwd), "--no-trace"], cwd, { PIPELINE_URL: mock.url });
     expect(r.code).toBe(0);
-    const db = new Database(join(cwd, ".regrade", "results.db"), { readonly: true });
+    const db = new Database(join(cwd, ".behavtest", "results.db"), { readonly: true });
     expect(db.prepare("SELECT COUNT(*) AS n FROM traces").get()).toEqual({ n: 0 });
     db.close();
   });

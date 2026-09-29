@@ -40,7 +40,7 @@ afterEach(() => {
 });
 
 const workdir = () => {
-  const d = mkdtempSync(join(tmpdir(), "regrade-e2e3-"));
+  const d = mkdtempSync(join(tmpdir(), "behavtest-e2e3-"));
   dirs.push(d);
   return d;
 };
@@ -66,26 +66,26 @@ describe("baselines and run files (built binary)", () => {
   it("committed compact baseline: a fresh checkout with no database compares against it and gates", async () => {
     // on main: run and write the baseline that gets committed
     const main = workdir();
-    const made = await runCli(["run", writeSuite(main), "--repeat", "3", "--export", "regrade.baseline.json", "--compact"], main, healthy());
+    const made = await runCli(["run", writeSuite(main), "--repeat", "3", "--export", "behavtest.baseline.json", "--compact"], main, healthy());
     expect(made.code).toBe(0);
-    expect(made.stdout).toContain("run file → regrade.baseline.json (compact)");
-    const text = readFileSync(join(main, "regrade.baseline.json"), "utf8");
+    expect(made.stdout).toContain("run file → behavtest.baseline.json (compact)");
+    const text = readFileSync(join(main, "behavtest.baseline.json"), "utf8");
     expect(text).not.toContain("What is 2 + 2?");
-    expect(JSON.parse(text)).toMatchObject({ kind: "regrade.run", compact: true, run: { suiteName: "baseline-suite" } });
+    expect(JSON.parse(text)).toMatchObject({ kind: "behavtest.run", compact: true, run: { suiteName: "baseline-suite" } });
 
-    // a PR's CI job: clean checkout (suite + baseline), no .regrade database
+    // a PR's CI job: clean checkout (suite + baseline), no .behavtest database
     const pr = workdir();
     const suite = writeSuite(pr);
-    copyFileSync(join(main, "regrade.baseline.json"), join(pr, "regrade.baseline.json"));
+    copyFileSync(join(main, "behavtest.baseline.json"), join(pr, "behavtest.baseline.json"));
 
     expect((await runCli(["run", suite, "--repeat", "3"], pr, healthy())).code).toBe(0);
-    const ok = await runCli(["compare", "regrade.baseline.json", "--fail-on-regression", "--md", "summary.md"], pr);
+    const ok = await runCli(["compare", "behavtest.baseline.json", "--fail-on-regression", "--md", "summary.md"], pr);
     expect(ok.code).toBe(0);
     expect(ok.stdout).toContain("regressed 0");
     expect(readFileSync(join(pr, "summary.md"), "utf8")).toContain("baseline-suite");
 
     expect((await runCli(["run", suite, "--repeat", "3"], pr, degraded())).code).toBe(1);
-    const bad = await runCli(["compare", "regrade.baseline.json", "--fail-on-regression"], pr);
+    const bad = await runCli(["compare", "behavtest.baseline.json", "--fail-on-regression"], pr);
     expect(bad.code).toBe(1);
     expect(bad.stdout).toContain("regressed 6");
     expect(bad.stdout).toContain("Gate failed:");
@@ -98,7 +98,7 @@ describe("baselines and run files (built binary)", () => {
     const r2 = await runCli(["run", suite], a, degraded());
     expect((await runCli(["export", runId(r1.stdout), "--out", "base.json"], a)).stdout).toContain("→ base.json");
     const printed = await runCli(["export", runId(r2.stdout)], a);
-    expect(JSON.parse(printed.stdout).kind).toBe("regrade.run"); // stdout by default
+    expect(JSON.parse(printed.stdout).kind).toBe("behavtest.run"); // stdout by default
     writeFileSync(join(a, "head.json"), printed.stdout);
 
     const elsewhere = workdir();
@@ -106,7 +106,7 @@ describe("baselines and run files (built binary)", () => {
     const cmp = await runCli(["compare", "base.json", "head.json", "--fail-on-regression"], elsewhere);
     expect(cmp.code).toBe(1);
     expect(cmp.stdout).toContain("regressed 6");
-    expect(existsSync(join(elsewhere, ".regrade"))).toBe(false);
+    expect(existsSync(join(elsewhere, ".behavtest"))).toBe(false);
 
     const report = await runCli(["report", "head.json", "--against", "base.json", "--out", "r.html"], elsewhere);
     expect(report.code).toBe(0);

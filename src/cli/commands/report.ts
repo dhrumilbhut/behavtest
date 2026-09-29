@@ -13,7 +13,7 @@ export interface ReportOptions {
   out?: string;
 }
 
-export const DEFAULT_REPORT_PATH = "regrade-report.html";
+export const DEFAULT_REPORT_PATH = "behavtest-report.html";
 
 /** Write a single-file HTML report for a run, optionally compared against a base run. */
 export function reportCommand(runRef: string, o: ReportOptions): string {

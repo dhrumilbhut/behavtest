@@ -184,7 +184,7 @@ describe("RAG judges in a run", () => {
   const run = (c: TestCase[], judge = "openai:gpt-test") => {
     const reg = registry();
     reg.registerAdapter(functionAdapter({ name: "rag-fn", run: (input) => answer(String(input)) }));
-    return runSuite({ suite: { name: "rag", pipeline: { adapter: "rag-fn", config: {} }, cases: c }, registry: reg, store: store!, regradeVersion: "t", env: env(), overrides: { judge } });
+    return runSuite({ suite: { name: "rag", pipeline: { adapter: "rag-fn", config: {} }, cases: c }, registry: reg, store: store!, behavtestVersion: "t", env: env(), overrides: { judge } });
   };
 
   it("checks a judge once per run even when several judge scorers share it", async () => {

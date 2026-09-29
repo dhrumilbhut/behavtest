@@ -129,7 +129,7 @@ export function pickMatrix(store: Store, ref: string | undefined, suite?: string
   if (!store.getMatrix || !store.listMatrices) throw new ConfigError("This results store does not keep matrices.");
   if (ref) {
     const m = store.getMatrix(ref);
-    if (!m) throw new ConfigError(`No matrix matching "${ref}". Run a suite that has "variants", or list matrices with \`regrade matrix --list\`.`);
+    if (!m) throw new ConfigError(`No matrix matching "${ref}". Run a suite that has "variants", or list matrices with \`behavtest matrix --list\`.`);
     return m;
   }
   // the latest with two or more variants: `run --variant x` makes a one-variant matrix, which compares nothing

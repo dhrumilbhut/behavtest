@@ -1,8 +1,8 @@
-// A small, deterministic retrieval-augmented pipeline for trying Regrade's RAG scorers.
+// A small, deterministic retrieval-augmented pipeline for trying BehavTest's RAG scorers.
 // A fictional store's policy documents, a keyword retriever, and an answer built from the best
 // document. No model and no API key: the same question always gives the same answer.
 //
-// Modes (to see what Regrade catches):
+// Modes (to see what BehavTest catches):
 //   healthy      retrieves the right policy and answers from it
 //   degraded     retrieval is broken: the right document is missing, the answer comes from another
 //   hallucinate  retrieval is fine, but the answer adds a claim no document supports
@@ -65,7 +65,7 @@ function bestSentences(question, text) {
 }
 
 /**
- * Answer a question. Returns `{ output, steps }`: `steps` is the trace Regrade stores and scores (a
+ * Answer a question. Returns `{ output, steps }`: `steps` is the trace BehavTest stores and scores (a
  * `retrieval` step whose output is the retrieved documents, then an `llm` step that writes the answer).
  */
 export function answer(question, { mode = "healthy", k = 3 } = {}) {

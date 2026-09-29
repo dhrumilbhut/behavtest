@@ -11,7 +11,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write # moves the v0 tag that `uses: dhrumilbhut/regrade@v0` follows
+  contents: write # moves the v0 tag that `uses: dhrumilbhut/behavtest@v0` follows
   id-token: write # required for trusted publishing / provenance
 
 jobs:

@@ -35,7 +35,7 @@ function readmeBlock(firstLine: string): string {
 
 describe("README examples stay runnable", () => {
   it.skipIf(!hasTs)("the code-suite example runs as written (with a stand-in for ./agent.ts)", async () => {
-    const cwd = mkdtempSync(join(tmpdir(), "regrade-readme-"));
+    const cwd = mkdtempSync(join(tmpdir(), "behavtest-readme-"));
     dirs.push(cwd);
     writeFileSync(join(cwd, "support-bot.suite.ts"), readmeBlock("// support-bot.suite.ts"));
     writeFileSync(

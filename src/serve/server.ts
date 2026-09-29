@@ -121,7 +121,7 @@ export function dashboardHandler(opts: { store: Store; version: string; host: st
       const method = req.method ?? "GET";
       const rawUrl = req.url ?? "/";
       if (!hostAllowed(req.headers.host, opts.host)) {
-        sendError(res, 421, "Unrecognised Host header. Open the dashboard at the address `regrade serve` printed.");
+        sendError(res, 421, "Unrecognised Host header. Open the dashboard at the address `behavtest serve` printed.");
         return;
       }
       if (rawUrl.length > MAX_URL_CHARS) {
@@ -167,7 +167,7 @@ export function dashboardHandler(opts: { store: Store; version: string; host: st
     } catch (err) {
       if (err instanceof ApiError) sendError(res, err.status, err.message);
       else {
-        if (process.env.DEBUG) process.stderr.write(`regrade serve: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`);
+        if (process.env.DEBUG) process.stderr.write(`behavtest serve: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`);
         sendError(res, 500, `Internal error: ${errorMessage(err)}`);
       }
     }

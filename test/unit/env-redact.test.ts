@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { resolveEnv } from "../../src/core/env.js";
+import { envSetting, resolveEnv } from "../../src/core/env.js";
 import { ConfigError } from "../../src/core/errors.js";
 import { stableHash, stableStringify } from "../../src/core/hash.js";
 import { redactConfig, REDACTED } from "../../src/core/redact.js";
+
+describe("envSetting", () => {
+  it("reads BEHAVTEST_<name>, falling back to REGRADE_<name> (the former name)", () => {
+    expect(envSetting("JUDGE", { BEHAVTEST_JUDGE: "a:new", REGRADE_JUDGE: "a:old" })).toBe("a:new");
+    expect(envSetting("JUDGE", { REGRADE_JUDGE: "a:old" })).toBe("a:old");
+    expect(envSetting("JUDGE", { BEHAVTEST_JUDGE: "", REGRADE_JUDGE: "a:old" })).toBe("a:old");
+    expect(envSetting("JUDGE", {})).toBeUndefined();
+  });
+});
 
 describe("resolveEnv", () => {
   it("substitutes ${VAR} in nested strings", () => {

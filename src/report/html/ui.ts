@@ -1,10 +1,10 @@
-// Browser code shared by the single-file HTML report and the `regrade serve` dashboard.
+// Browser code shared by the single-file HTML report and the `behavtest serve` dashboard.
 // Plain JavaScript (ES5 style, no dependencies), kept as strings and inlined into the pages.
 // Every value from a run is inserted with textContent, never as HTML.
 
-/** The shared library: defines the global `RegradeUI`. */
+/** The shared library: defines the global `BehavTestUI`. */
 export const UI_LIB = String.raw`
-var RegradeUI = (function () {
+var BehavTestUI = (function () {
   'use strict';
   var root = document.documentElement;
 
@@ -70,7 +70,7 @@ var RegradeUI = (function () {
   function themeButton() {
     var modes = ['auto', 'light', 'dark'];
     var cur = 'auto';
-    try { cur = localStorage.getItem('regrade-theme') || 'auto'; } catch (e) {}
+    try { cur = localStorage.getItem('behavtest-theme') || localStorage.getItem('regrade-theme') || 'auto'; } catch (e) {}
     var btn = h('button', { class: 'btn', type: 'button', 'aria-label': 'Change colour theme' });
     function apply() {
       if (cur === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', cur);
@@ -78,7 +78,7 @@ var RegradeUI = (function () {
     }
     btn.addEventListener('click', function () {
       cur = modes[(modes.indexOf(cur) + 1) % modes.length];
-      try { localStorage.setItem('regrade-theme', cur); } catch (e) {}
+      try { localStorage.setItem('behavtest-theme', cur); } catch (e) {}
       apply();
     });
     apply();
@@ -490,7 +490,7 @@ var RegradeUI = (function () {
         h('p', { class: 'meta', style: 'margin:-8px 0 12px', text: 'Dots are the pass rate, bars its 95% Wilson interval; the thin line marks the reference (' + M.reference + ').' }),
         intervalChart(M)),
       h('section', { class: 'block' }, h('h2', { class: 'sec', text: 'Variants' }), variantTable,
-        h('p', { class: 'meta', style: 'margin-top:8px', text: '"vs" is the mean change in pass rate per case against the reference, with a 95% interval and a case-stratified permutation test (the same statistics as regrade compare).' })),
+        h('p', { class: 'meta', style: 'margin-top:8px', text: '"vs" is the mean change in pass rate per case against the reference, with a 95% interval and a case-stratified permutation test (the same statistics as behavtest compare).' })),
       h('section', { class: 'block' }, h('h2', { class: 'sec', text: 'Cases' }), h('div', { class: 'tools' }, h('div', { class: 'chips' }, toggle)), grid));
   }
 
@@ -509,9 +509,9 @@ var RegradeUI = (function () {
 export const REPORT_APP = String.raw`
 (function () {
   'use strict';
-  var U = RegradeUI, h = U.h;
+  var U = BehavTestUI, h = U.h;
   var D;
-  try { D = JSON.parse(document.getElementById('regrade-data').textContent); } catch (e) { return; }
+  try { D = JSON.parse(document.getElementById('behavtest-data').textContent); } catch (e) { return; }
   var app = document.getElementById('app');
   var run = D.run;
 
@@ -523,16 +523,17 @@ export const REPORT_APP = String.raw`
     if (run.status !== 'completed') meta.push(run.status);
     return h('header', { class: 'top' },
       h('div', null,
-        h('div', { class: 'brand', text: 'Regrade' }),
+        h('div', { class: 'brand', text: 'BehavTest' }),
         h('h1', { text: run.suiteName }),
         h('p', { class: 'meta', text: meta.join('  ·  ') })),
       U.themeButton());
   }
 
-  // ---- labels kept in this browser, exported for regrade calibrate ----
-  var LKEY = 'regrade-labels:' + run.runId;
+  // ---- labels kept in this browser, exported for behavtest calibrate ----
+  var LKEY = 'behavtest-labels:' + run.runId;
   var labels = {};
-  try { labels = JSON.parse(localStorage.getItem(LKEY) || '{}') || {}; } catch (e) { labels = {}; }
+  // labels saved before the rename from Regrade are still picked up
+  try { labels = JSON.parse(localStorage.getItem(LKEY) || localStorage.getItem('regrade-labels:' + run.runId) || '{}') || {}; } catch (e) { labels = {}; }
   var onLabelsChanged = function () {};
   var key = function (caseId, attempt, scorer) { return JSON.stringify([caseId, attempt, scorer]); };
   var store = {
@@ -559,7 +560,7 @@ export const REPORT_APP = String.raw`
     var armed = null;
     exp.addEventListener('click', function () {
       var url = URL.createObjectURL(new Blob([labelsJsonl()], { type: 'application/x-ndjson' }));
-      var a = h('a', { href: url, download: 'regrade-labels-' + run.runId.slice(0, 8) + '.jsonl' });
+      var a = h('a', { href: url, download: 'behavtest-labels-' + run.runId.slice(0, 8) + '.jsonl' });
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     });
@@ -586,12 +587,12 @@ export const REPORT_APP = String.raw`
     onLabelsChanged = sync;
     sync();
     return h('div', { class: 'labels' },
-      h('span', { class: 'lh', text: 'Check the judge: mark judged answers Pass or Fail yourself, export the labels, then run regrade calibrate --labels <file>. Labels are kept in this browser.' }),
+      h('span', { class: 'lh', text: 'Check the judge: mark judged answers Pass or Fail yourself, export the labels, then run behavtest calibrate --labels <file>. Labels are kept in this browser.' }),
       count, exp, copy, clear);
   }
 
   function footer() {
-    return h('footer', { text: 'Generated by Regrade ' + D.version + ' on ' + U.when(D.generatedAt) + '. This report is a single self-contained file: it loads nothing from the network. Outputs are shown exactly as the pipeline returned them.' });
+    return h('footer', { text: 'Generated by BehavTest ' + D.version + ' on ' + U.when(D.generatedAt) + '. This report is a single self-contained file: it loads nothing from the network. Outputs are shown exactly as the pipeline returned them.' });
   }
 
   var redraw = function () {};

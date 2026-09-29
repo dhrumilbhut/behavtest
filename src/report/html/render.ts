@@ -112,7 +112,7 @@ export function reportData(opts: ReportDataOptions) {
           error: s.error ? clip(s.error, 4000) : null,
           costUsd: s.costUsd ?? null,
           note: scoreNote(s) || null,
-          // a judge's verdict you can label for `regrade calibrate`
+          // a judge's verdict you can label for `behavtest calibrate`
           judged: typeof s.metadata?.judge === "string" && !s.error,
         })),
         trace: withTraces && a.trace && a.trace.length > 0 ? reportTrace(a.trace) : null,
@@ -130,7 +130,7 @@ export function renderHtmlReport(opts: HtmlReportOptions): string {
   const data = reportData(opts);
 
   const s = report.summary.cases;
-  const title = `Regrade · ${report.run.suiteName}`;
+  const title = `BehavTest · ${report.run.suiteName}`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -146,11 +146,11 @@ export function renderHtmlReport(opts: HtmlReportOptions): string {
 <div id="app">
 <div class="wrap">
 <h1>${escapeHtml(report.run.suiteName)}</h1>
-<p class="meta">Regrade report · ${s.passed} of ${s.total} cases passed · ${s.failed} failed · ${s.flaky} flaky · ${s.errored} errored</p>
+<p class="meta">BehavTest report · ${s.passed} of ${s.total} cases passed · ${s.failed} failed · ${s.flaky} flaky · ${s.errored} errored</p>
 <noscript><p class="meta">This report needs JavaScript to show case details. The complete data is embedded in this file.</p></noscript>
 </div>
 </div>
-<script type="application/json" id="regrade-data">${safeJson(data)}</script>
+<script type="application/json" id="behavtest-data">${safeJson(data)}</script>
 <script>${JS}</script>
 </body>
 </html>

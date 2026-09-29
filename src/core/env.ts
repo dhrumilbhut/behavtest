@@ -2,6 +2,14 @@ import { ConfigError } from "./errors.js";
 
 export type Env = Record<string, string | undefined>;
 
+/**
+ * A BehavTest setting from the environment: `BEHAVTEST_<name>`, or `REGRADE_<name>` (the project's
+ * former name) when only that is set. Empty values count as unset.
+ */
+export function envSetting(name: string, env: Env = process.env): string | undefined {
+  return env[`BEHAVTEST_${name}`] || env[`REGRADE_${name}`] || undefined;
+}
+
 const PLACEHOLDER = /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g;
 
 /** True if the string contains a `${VAR}` or `${VAR:-default}` placeholder. */

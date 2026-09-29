@@ -43,8 +43,8 @@ function rateOption(value: string): number {
 export function buildProgram(): Command {
   const program = new Command();
   program
-    .name("regrade")
-    .description("Regression tests for AI agents and RAG pipelines. Git diff for AI behavior.")
+    .name("behavtest")
+    .description("Behavioral regression testing for AI applications: LLM apps, AI agents and RAG pipelines.")
     .version(VERSION, "-v, --version")
     .exitOverride();
 
@@ -52,7 +52,7 @@ export function buildProgram(): Command {
     .command("run")
     .description("Run a test suite against your pipeline, score the outputs, and save the run")
     .argument("<suite>", "path to a suite file (.json, or a code suite: .ts .mts .js .mjs)")
-    .option("--db <path>", "SQLite database to save results to", ".regrade/results.db")
+    .option("--db <path>", "SQLite database to save results to (default .behavtest/results.db)")
     .option("--json <file>", "also write a JSON report to this file")
     .option("--md <file>", "also write a Markdown summary (e.g. for a CI job summary)")
     .option("--export <file>", "also write a portable run file (a baseline, or to compare or import elsewhere)")
@@ -86,7 +86,7 @@ Exit codes:
   program
     .command("runs")
     .description("List saved runs, newest first")
-    .option("--db <path>", "results database", ".regrade/results.db")
+    .option("--db <path>", "results database (default .behavtest/results.db)")
     .option("--suite <name>", "only runs of this suite")
     .option("--limit <n>", "how many runs to show (default 20)", intOption("--limit", 1, 1000))
     .option("--no-color", "disable coloured output")
@@ -97,7 +97,7 @@ Exit codes:
     .description("Show a run's summary, or one case's input, outputs, and scores")
     .argument("<run>", "run id or a unique prefix of it")
     .argument("[case]", "a case id")
-    .option("--db <path>", "results database", ".regrade/results.db")
+    .option("--db <path>", "results database (default .behavtest/results.db)")
     .option("--full", "do not truncate long inputs and outputs")
     .option("--no-color", "disable coloured output")
     .action((run: string, caseId: string | undefined, opts) => showCommand(run, caseId, opts));
@@ -106,7 +106,7 @@ Exit codes:
     .command("compare")
     .description("Compare two runs: what regressed, what improved, and whether it is real or noise")
     .argument("[runs...]", "base and head: run ids or run files. One run id: it vs the run before it. One run file: it (as the baseline) vs the latest run of its suite. None: the latest two")
-    .option("--db <path>", "results database", ".regrade/results.db")
+    .option("--db <path>", "results database (default .behavtest/results.db)")
     .option("--suite <name>", "with no run ids: which suite's latest runs to compare")
     .option("--all", "also list unchanged cases")
     .option("--json <file>", "write the full comparison as JSON")
@@ -130,7 +130,7 @@ changed (or that only exist in one run, or errored) are listed but never counted
     .command("matrix")
     .description("Compare the variants of a matrix run side by side: pass rate with intervals, cost, latency, and each variant against a reference")
     .argument("[matrix]", "matrix id or a unique prefix (default: the latest matrix)")
-    .option("--db <path>", "results database", ".regrade/results.db")
+    .option("--db <path>", "results database (default .behavtest/results.db)")
     .option("--suite <name>", "with no matrix id: the latest matrix of this suite")
     .option("--reference <variant>", "the variant the others are compared with (default: the first)")
     .option("--list", "list matrices, newest first")
@@ -142,7 +142,7 @@ changed (or that only exist in one run, or errored) are listed but never counted
       "after",
       `
 A matrix runs one suite several ways: add "variants" to the suite (each changes the pipeline's config,
-e.g. the model or the prompt) and \`regrade run\` makes one run per variant. Every variant uses the
+e.g. the model or the prompt) and \`behavtest run\` makes one run per variant. Every variant uses the
 same cases and the same judge, so their pass rates can be compared case by case.`,
     )
     .action((matrix: string | undefined, opts) => matrixCommand(matrix, opts));
@@ -150,9 +150,9 @@ same cases and the same judge, so their pass rates can be compared case by case.
   program
     .command("calibrate")
     .description("Measure how often an LLM judge agrees with your own pass/fail labels (agreement, Cohen's kappa, false pass and false fail rates)")
-    .option("--labels <file>", 'JSONL labels: one {run, case, attempt?, scorer?, label: "pass"|"fail"} per line (default: the labels saved in the database by regrade serve)')
+    .option("--labels <file>", 'JSONL labels: one {run, case, attempt?, scorer?, label: "pass"|"fail"} per line (default: the labels saved in the database by behavtest serve)')
     .option("--min-kappa <k>", "exit 1 unless every judge has at least 30 labels and kappa at or above this (e.g. 0.6)", kappaOption)
-    .option("--db <path>", "results database", ".regrade/results.db")
+    .option("--db <path>", "results database (default .behavtest/results.db)")
     .option("--json <file>", "write the calibration as JSON")
     .option("--md <file>", "write a Markdown summary")
     .option("--no-color", "disable coloured output")
@@ -166,14 +166,14 @@ same cases and the same judge, so their pass rates can be compared case by case.
     .argument("<run>", "run id or a unique prefix of it")
     .option("--out <file>", "file to write (default: print to stdout)")
     .option("--compact", "keep only what a comparison needs (no inputs, outputs or judge reasoning); safe to commit")
-    .option("--db <path>", "results database", ".regrade/results.db")
+    .option("--db <path>", "results database (default .behavtest/results.db)")
     .action((run: string, opts) => exportCommand(run, opts));
 
   program
     .command("import")
     .description("Load a run file into the results database (a run that is already there is skipped)")
     .argument("<file>", "a full run file (compact files can be compared against, not imported)")
-    .option("--db <path>", "results database", ".regrade/results.db")
+    .option("--db <path>", "results database (default .behavtest/results.db)")
     .action((file: string, opts) => importCommand(file, opts));
 
   program
@@ -181,8 +181,8 @@ same cases and the same judge, so their pass rates can be compared case by case.
     .description("Write a single-file, self-contained HTML report for a run")
     .argument("<run>", "run id (or a unique prefix) or run file; the head run when using --against")
     .option("--against <run>", "base run id or run file: adds a comparison against it")
-    .option("--out <file>", "output file", "regrade-report.html")
-    .option("--db <path>", "results database", ".regrade/results.db")
+    .option("--out <file>", "output file", "behavtest-report.html")
+    .option("--db <path>", "results database (default .behavtest/results.db)")
     .action((run: string, opts) => {
       reportCommand(run, opts);
     });
@@ -190,16 +190,16 @@ same cases and the same judge, so their pass rates can be compared case by case.
   program
     .command("serve")
     .description("Open a local dashboard: browse runs and trends, compare any two runs, label judged answers, and see judge calibration")
-    .option("--db <path>", "results database", ".regrade/results.db")
+    .option("--db <path>", "results database (default .behavtest/results.db)")
     .option("--port <n>", "port to listen on (default 4800)", intOption("--port", 0, 65535))
     .option("--host <host>", "interface to listen on (default 127.0.0.1, this machine only)")
     .option("--open", "open the dashboard in your browser")
     .addHelpText(
       "after",
       `
-The dashboard reads the same database as regrade runs/compare, and writes only your judge labels.
+The dashboard reads the same database as behavtest runs/compare, and writes only your judge labels.
 It listens on 127.0.0.1 by default. Another --host (e.g. 0.0.0.0) exposes your runs to your network
-with no login; regrade prints a warning when you do that.`,
+with no login; behavtest prints a warning when you do that.`,
     )
     .action(async (opts) => {
       process.exitCode = await serveCommand(opts);
@@ -208,7 +208,7 @@ with no login; regrade prints a warning when you do that.`,
   program
     .command("init")
     .description("Scaffold an example suite (and a mock pipeline, or with --ts a code-first suite)")
-    .option("--dir <dir>", "directory to create", "regrade")
+    .option("--dir <dir>", "directory to create", "behavtest")
     .option("--force", "overwrite existing files")
     .option("--ts", "scaffold a code-first TypeScript suite instead (no mock server needed)")
     .action((opts: { dir: string; force?: boolean; ts?: boolean }) => {

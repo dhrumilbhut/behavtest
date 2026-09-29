@@ -1,4 +1,4 @@
-/** log(n!) via a cumulative table; fine for the attempt counts Regrade deals with. */
+/** log(n!) via a cumulative table; fine for the attempt counts BehavTest deals with. */
 const logFactCache: number[] = [0, 0];
 function logFact(n: number): number {
   for (let i = logFactCache.length; i <= n; i++) {

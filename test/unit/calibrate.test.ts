@@ -69,7 +69,7 @@ function seed(): SqliteStore {
   const s = new SqliteStore(":memory:");
   const run = (runId: string): RunRecord => ({
     runId, suiteName: "s", suiteHash: "h", startedAt: "2026-09-28T10:00:00.000Z", finishedAt: null, status: "running",
-    regradeVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {}, summary: null,
+    behavtestVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {}, summary: null,
   });
   s.createRun(run("run-one"));
   // 40 judged attempts: the judge passes the even ones; one attempt's judge call errored
@@ -165,7 +165,7 @@ describe("calibrate", () => {
     store = seed();
     const report = calibrate(store, humanLabels());
     const text = renderCalibration(report, calibrationGate(report, 0.6), false);
-    expect(text).toContain("regrade calibrate · 40 labels, 40 matched");
+    expect(text).toContain("behavtest calibrate · 40 labels, 40 matched");
     expect(text).toContain('llmJudge · judge openai:gpt-4.1-nano · "Cites the policy?"');
     expect(text).toMatch(/labels 40 {3}agreement 90% \[\d+%–\d+%\] {3}kappa 0\.80 \[0\.\d\d, 0\.\d\d\] {2}\(almost perfect agreement\)/);
     expect(text).toContain("judge passed 2 of 20 answers you failed (false pass 10%) · failed 2 of 20 you passed (false fail 10%)");
@@ -176,15 +176,15 @@ describe("calibrate", () => {
 });
 
 describe("calibrate from stored labels", () => {
-  it("regrade calibrate without --labels reads the labels saved in the database", async () => {
+  it("behavtest calibrate without --labels reads the labels saved in the database", async () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
     const { calibrateCommand } = await import("../../src/cli/commands/calibrate.js");
-    const dir = mkdtempSync(join(tmpdir(), "regrade-cal-"));
+    const dir = mkdtempSync(join(tmpdir(), "behavtest-cal-"));
     const path = join(dir, "results.db");
     const s = new SqliteStore(path);
-    s.createRun({ runId: "run-one", suiteName: "s", suiteHash: "h", startedAt: "2026-09-28T10:00:00.000Z", regradeVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {} });
+    s.createRun({ runId: "run-one", suiteName: "s", suiteHash: "h", startedAt: "2026-09-28T10:00:00.000Z", behavtestVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {} });
     s.saveAttempt("run-one", attempt({ caseId: "c", attempt: 1, scores: [{ scorerName: "llmJudge", pass: true, value: 1, metadata: { judge: "openai:x" } }] }));
     const writes: string[] = [];
     const orig = process.stdout.write.bind(process.stdout);
@@ -198,6 +198,6 @@ describe("calibrate from stored labels", () => {
       s.close();
       rmSync(dir, { recursive: true, force: true });
     }
-    expect(writes.join("")).toContain("regrade calibrate · 1 labels, 1 matched");
+    expect(writes.join("")).toContain("behavtest calibrate · 1 labels, 1 matched");
   });
 });

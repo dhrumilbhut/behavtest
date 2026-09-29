@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -23,13 +23,13 @@ export default {
 interface ActionResult { code: number | null; stdout: string; outputs: Record<string, string>; summary: string; dir: string }
 
 function project(): string {
-  const dir = mkdtempSync(join(tmpdir(), "regrade-action-"));
+  const dir = mkdtempSync(join(tmpdir(), "behavtest-action-"));
   dirs.push(dir);
   writeFileSync(join(dir, "suite.mjs"), SUITE);
   return dir;
 }
 
-/** Run the action script the way action.yml does: RG_* inputs, GitHub's file-based outputs, cwd = working-directory. */
+/** Run the action script the way action.yml does: BT_* inputs, GitHub's file-based outputs, cwd = working-directory. */
 function action(dir: string, inputs: Record<string, string>, extraEnv: Record<string, string> = {}): Promise<ActionResult> {
   const out = join(dir, `outputs-${Date.now()}-${Math.random()}.txt`);
   const sum = join(dir, `summary-${Date.now()}-${Math.random()}.md`);
@@ -44,7 +44,7 @@ function action(dir: string, inputs: Record<string, string>, extraEnv: Record<st
     RUNNER_TEMP: dir,
     GITHUB_JOB: "test",
     RUNNER_OS: "Test",
-    ...Object.fromEntries(Object.entries(inputs).map(([k, v]) => [`RG_${k}`, v])),
+    ...Object.fromEntries(Object.entries(inputs).map(([k, v]) => [`BT_${k}`, v])),
     ...extraEnv,
   };
   return new Promise((res, rej) => {
@@ -55,7 +55,7 @@ function action(dir: string, inputs: Record<string, string>, extraEnv: Record<st
     child.on("error", rej);
     child.on("close", (code) => {
       const outputs: Record<string, string> = {};
-      for (const m of readFileSync(out, "utf8").matchAll(/^([\w-]+)<<__RG_EOF__\n([\s\S]*?)\n__RG_EOF__$/gm)) outputs[m[1]!] = m[2]!;
+      for (const m of readFileSync(out, "utf8").matchAll(/^([\w-]+)<<__BT_EOF__\n([\s\S]*?)\n__BT_EOF__$/gm)) outputs[m[1]!] = m[2]!;
       res({ code, stdout, outputs, summary: readFileSync(sum, "utf8"), dir });
     });
   });
@@ -65,7 +65,7 @@ function action(dir: string, inputs: Record<string, string>, extraEnv: Record<st
 async function withBaseline(dir: string): Promise<void> {
   const r = await action(dir, { SUITE: "suite.mjs", GATE: "none", REPEAT: "3" });
   expect(r.outputs.result).toBe("pass");
-  writeFileSync(join(dir, "regrade.baseline.json"), readFileSync(join(r.outputs["artifact-dir"]!, "run.json")));
+  writeFileSync(join(dir, "behavtest.baseline.json"), readFileSync(join(r.outputs["artifact-dir"]!, "run.json")));
 }
 
 beforeAll(() => expect(existsSync(join(root, "dist", "cli.js")), "run `npm run build`").toBe(true));
@@ -86,10 +86,10 @@ describe("the action script", () => {
   it("without a baseline: runs, passes, explains how to make one, and leaves the report files", async () => {
     const dir = project();
     const r = await action(dir, { SUITE: "suite.mjs", GATE: "regression" });
-    expect(r.outputs).toMatchObject({ result: "pass", "exit-code": "0", regressed: "", "artifact-name": "regrade-test-Test-suite" });
+    expect(r.outputs).toMatchObject({ result: "pass", "exit-code": "0", regressed: "", "artifact-name": "behavtest-test-Test-suite" });
     expect(r.outputs["run-id"]).toMatch(/^[0-9a-f-]{36}$/);
     expect(r.summary).toContain("No baseline yet");
-    expect(r.summary).toContain("npx regrade run suite.mjs --export regrade.baseline.json --compact");
+    expect(r.summary).toContain("npx behavtest run suite.mjs --export behavtest.baseline.json --compact");
     for (const f of ["run.json", "run.md", "report.html"]) expect(existsSync(join(r.outputs["artifact-dir"]!, f)), f).toBe(true);
     expect(r.outputs["report-path"]).toBe(join(r.outputs["artifact-dir"]!, "report.html"));
   });
@@ -99,14 +99,23 @@ describe("the action script", () => {
     await withBaseline(dir);
     const ok = await action(dir, { SUITE: "suite.mjs", REPEAT: "3" });
     expect(ok.outputs).toMatchObject({ result: "pass", "exit-code": "0", regressed: "0" });
-    expect(ok.summary).toContain("no regression against regrade.baseline.json");
+    expect(ok.summary).toContain("no regression against behavtest.baseline.json");
 
     const bad = await action(dir, { SUITE: "suite.mjs", REPEAT: "3" }, { QUALITY: "broken" });
     expect(bad.outputs).toMatchObject({ result: "fail", "exit-code": "1", regressed: "4" });
     expect(bad.outputs.message).toContain("the regression gate failed");
     expect(bad.summary).toContain("❌ fail");
-    expect(bad.summary).toContain("## Regrade compare · action-e2e");
-    expect(readFileSync(bad.outputs["report-path"]!, "utf8")).toContain("regrade-data");
+    expect(bad.summary).toContain("## BehavTest compare · action-e2e");
+    expect(readFileSync(bad.outputs["report-path"]!, "utf8")).toContain("behavtest-data");
+  });
+
+  it("still finds a baseline committed under the name from before the rename (regrade.baseline.json)", async () => {
+    const dir = project();
+    await withBaseline(dir);
+    renameSync(join(dir, "behavtest.baseline.json"), join(dir, "regrade.baseline.json"));
+    const bad = await action(dir, { SUITE: "suite.mjs", REPEAT: "3" }, { QUALITY: "broken" });
+    expect(bad.outputs).toMatchObject({ result: "fail", "exit-code": "1", regressed: "4" });
+    expect(bad.summary).toContain("regrade.baseline.json");
   });
 
   it("gates: significant needs significance, cases looks only at this run, none never fails", async () => {
@@ -190,15 +199,23 @@ describe("pull request comment", () => {
     expect(first.stdout).toContain("comment: posted on #7");
     expect(calls.some((c) => c.startsWith("POST /repos/o/r/issues/7/comments Bearer t0k"))).toBe(true);
     await action(dir, { SUITE: "suite.mjs", COMMENT: "true", TOKEN: "t0k" }, { ...gh, QUALITY: "broken" });
-    const ours = comments.filter((c) => c.body.startsWith("<!-- regrade-action:test:suite.mjs -->"));
+    const ours = comments.filter((c) => c.body.startsWith("<!-- behavtest-action:test:suite.mjs -->"));
     expect(ours).toHaveLength(1);
     expect(ours[0]!.body).toContain("https://github.com/o/r/actions/runs/123");
     expect(comments.find((c) => c.id === 99)!.body).toBe("someone else's comment");
 
     forbid = true;
     const refused = await action(dir, { SUITE: "suite.mjs", COMMENT: "true", TOKEN: "t0k" }, gh);
-    expect(refused.stdout).toMatch(/::warning title=Regrade::Could not comment.*pull-requests: write/);
+    expect(refused.stdout).toMatch(/::warning title=BehavTest::Could not comment.*pull-requests: write/);
     expect(refused.outputs.result).toBe("pass");
+
+    forbid = false;
+    // a comment posted by the action before the rename from Regrade is taken over, not duplicated
+    comments.push({ id: 50, body: "<!-- regrade-action:test:./suite.mjs -->\nold summary" });
+    const before = comments.length;
+    await action(dir, { SUITE: "./suite.mjs", COMMENT: "true", TOKEN: "t0k" }, gh);
+    expect(comments).toHaveLength(before);
+    expect(comments.find((c) => c.id === 50)!.body.startsWith("<!-- behavtest-action:test:./suite.mjs -->")).toBe(true);
 
     const push = await action(dir, { SUITE: "suite.mjs", COMMENT: "true" }, { ...gh, GITHUB_EVENT_PATH: join(dir, "missing.json") });
     expect(push.stdout).toContain("not a pull request event");

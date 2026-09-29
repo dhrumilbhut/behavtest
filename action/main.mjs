@@ -1,5 +1,5 @@
-// The Regrade GitHub Action (see action.yml). Plain Node.js, no dependencies.
-// It installs the Regrade version matching this action's tag, runs the suite, compares it with the
+// The BehavTest GitHub Action (see action.yml). Plain Node.js, no dependencies.
+// It installs the BehavTest version matching this action's tag, runs the suite, compares it with the
 // baseline, writes the job summary, outputs and an optional pull request comment, and records the exit
 // code for the final step (so the report artifact is uploaded even when the gate fails).
 import { spawnSync } from "node:child_process";
@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const env = process.env;
 const actionPath = env.GITHUB_ACTION_PATH ?? resolve(import.meta.dirname, "..");
-const input = (name) => (env[`RG_${name}`] ?? "").trim();
+const input = (name) => (env[`BT_${name}`] ?? "").trim();
 
 const GATES = new Set(["regression", "significant", "cases", "none"]);
 const COMMENT_LIMIT = 60_000;
@@ -42,7 +42,7 @@ export function splitArgs(s) {
 export const oneLine = (s) => String(s).replace(/%/g, "%25").replace(/\r?\n/g, " ").slice(0, 900);
 
 function setOutput(name, value) {
-  if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `${name}<<__RG_EOF__\n${value}\n__RG_EOF__\n`);
+  if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `${name}<<__BT_EOF__\n${value}\n__BT_EOF__\n`);
 }
 function summary(text) {
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${text}\n`);
@@ -57,15 +57,15 @@ function resolveCli(tmp) {
   if (existsSync(local)) return local;
   const version = JSON.parse(readFileSync(join(actionPath, "package.json"), "utf8")).version;
   const prefix = join(tmp, "cli");
-  group(`Install regrade@${version}`);
+  group(`Install behavtest@${version}`);
   // fixed arguments only (no user input), so running npm through the shell is safe on every OS
-  const r = spawnSync(`npm install --no-save --no-audit --no-fund --loglevel=error --prefix "${prefix}" regrade@${version}`, { shell: true, stdio: "inherit" });
+  const r = spawnSync(`npm install --no-save --no-audit --no-fund --loglevel=error --prefix "${prefix}" behavtest@${version}`, { shell: true, stdio: "inherit" });
   endGroup();
-  if (r.status !== 0) throw new Error(`could not install regrade@${version} from npm`);
-  return join(prefix, "node_modules", "regrade", "dist", "cli.js");
+  if (r.status !== 0) throw new Error(`could not install behavtest@${version} from npm`);
+  return join(prefix, "node_modules", "behavtest", "dist", "cli.js");
 }
 
-function regrade(cli, args, title) {
+function behavtest(cli, args, title) {
   group(title);
   const r = spawnSync(process.execPath, [cli, ...args], { stdio: ["ignore", "inherit", "pipe"], env: { ...env, CI: "1" }, encoding: "utf8" });
   if (r.stderr) process.stderr.write(r.stderr);
@@ -86,14 +86,16 @@ async function comment(body) {
   const api = env.GITHUB_API_URL ?? "https://api.github.com";
   const repo = env.GITHUB_REPOSITORY;
   const headers = { Authorization: `Bearer ${input("TOKEN")}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" };
-  const marker = `<!-- regrade-action:${env.GITHUB_JOB ?? ""}:${input("SUITE")} -->`;
+  const marker = `<!-- behavtest-action:${env.GITHUB_JOB ?? ""}:${input("SUITE")} -->`;
+  // comments posted before the rename from Regrade carry the old marker; they are updated in place
+  const legacyMarker = `<!-- regrade-action:${env.GITHUB_JOB ?? ""}:${input("SUITE")} -->`;
   const text = `${marker}\n${body.length > COMMENT_LIMIT ? `${body.slice(0, COMMENT_LIMIT)}\n\n… (truncated; the full summary is in the workflow run)` : body}`;
   let existing;
   for (let page = 1; page <= 5 && !existing; page++) {
     const r = await fetch(`${api}/repos/${repo}/issues/${number}/comments?per_page=100&page=${page}`, { headers });
     if (!r.ok) throw new Error(`listing comments: HTTP ${r.status}${hint(r.status)}`);
     const list = await r.json();
-    existing = list.find((c) => typeof c.body === "string" && c.body.startsWith(marker));
+    existing = list.find((c) => typeof c.body === "string" && (c.body.startsWith(marker) || c.body.startsWith(legacyMarker)));
     if (list.length < 100) break;
   }
   const r = existing
@@ -107,10 +109,16 @@ async function comment(body) {
   process.stdout.write(`comment: ${existing ? "updated" : "posted"} on #${number}\n`);
 }
 
+/** behavtest.baseline.json, or regrade.baseline.json (the name before the rename from Regrade) when only that exists. */
+function defaultBaseline() {
+  if (!existsSync("behavtest.baseline.json") && existsSync("regrade.baseline.json")) return "regrade.baseline.json";
+  return "behavtest.baseline.json";
+}
+
 export async function main() {
   const suite = input("SUITE");
   const gate = input("GATE") || "regression";
-  const baseline = input("BASELINE") || "regrade.baseline.json";
+  const baseline = input("BASELINE") || defaultBaseline();
   const done = (result, exitCode, message) => {
     setOutput("result", result);
     setOutput("exit-code", String(exitCode));
@@ -120,12 +128,12 @@ export async function main() {
   if (!suite) return done("error", 2, "The `suite` input is required.");
   if (!GATES.has(gate)) return done("error", 2, `Unknown gate "${gate}": use regression, significant, cases or none.`);
 
-  const tmp = join(env.RUNNER_TEMP ?? resolve(".regrade"), `regrade-action-${env.GITHUB_JOB ?? "job"}-${Date.now()}`);
+  const tmp = join(env.RUNNER_TEMP ?? resolve(".behavtest"), `behavtest-action-${env.GITHUB_JOB ?? "job"}-${Date.now()}`);
   const out = join(tmp, "artifact");
   mkdirSync(out, { recursive: true });
   const slug = (s) => s.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
   setOutput("artifact-dir", out);
-  setOutput("artifact-name", input("ARTIFACT_NAME") || slug(`regrade-${env.GITHUB_JOB ?? "job"}-${env.RUNNER_OS ?? "local"}-${basename(suite).replace(/\.[^.]+$/, "")}`));
+  setOutput("artifact-name", input("ARTIFACT_NAME") || slug(`behavtest-${env.GITHUB_JOB ?? "job"}-${env.RUNNER_OS ?? "local"}-${basename(suite).replace(/\.[^.]+$/, "")}`));
 
   let cli;
   let extra;
@@ -133,7 +141,7 @@ export async function main() {
     cli = resolveCli(tmp);
     extra = splitArgs(input("ARGS"));
   } catch (err) {
-    return done("error", 2, `Regrade could not start: ${err.message}`);
+    return done("error", 2, `BehavTest could not start: ${err.message}`);
   }
 
   // 1. run
@@ -143,10 +151,10 @@ export async function main() {
   if (input("MIN_PASS_RATE")) runArgs.push("--min-pass-rate", input("MIN_PASS_RATE"));
   if (input("JUDGE")) runArgs.push("--judge", input("JUDGE"));
   runArgs.push(...extra);
-  const run = regrade(cli, runArgs, `regrade ${runArgs.join(" ")}`);
+  const run = behavtest(cli, runArgs, `behavtest ${runArgs.join(" ")}`);
   if (run.code === 2 || run.code === 130 || !existsSync(runFile)) {
-    const why = run.stderr.trim().split("\n").slice(-3).join(" ") || `regrade run exited ${run.code}`;
-    summary(`### Regrade: error\n\n\`\`\`\n${run.stderr.trim().slice(-4000) || why}\n\`\`\``);
+    const why = run.stderr.trim().split("\n").slice(-3).join(" ") || `behavtest run exited ${run.code}`;
+    summary(`### BehavTest: error\n\n\`\`\`\n${run.stderr.trim().slice(-4000) || why}\n\`\`\``);
     return done("error", run.code === 130 ? 130 : 2, why);
   }
   const runId = JSON.parse(readFileSync(runFile, "utf8")).run?.runId ?? "";
@@ -160,8 +168,8 @@ export async function main() {
     const cmpArgs = ["compare", baseline, runFile, "--md", join(out, "compare.md"), "--json", join(out, "compare.json")];
     if (gate === "regression") cmpArgs.push("--fail-on-regression");
     if (gate === "significant") cmpArgs.push("--significant-only");
-    const cmp = regrade(cli, cmpArgs, "regrade compare (baseline → this run)");
-    if (cmp.code === 2) return done("error", 2, cmp.stderr.trim().split("\n").slice(-2).join(" ") || "regrade compare failed");
+    const cmp = behavtest(cli, cmpArgs, "behavtest compare (baseline → this run)");
+    if (cmp.code === 2) return done("error", 2, cmp.stderr.trim().split("\n").slice(-2).join(" ") || "behavtest compare failed");
     compareCode = cmp.code;
     try {
       regressed = String(JSON.parse(readFileSync(join(out, "compare.json"), "utf8")).comparison.counts.regressed);
@@ -174,7 +182,7 @@ export async function main() {
   // 3. report
   const report = join(out, "report.html");
   const repArgs = ["report", runFile, "--out", report, ...(hasBaseline ? ["--against", baseline] : [])];
-  if (regrade(cli, repArgs, "regrade report").code === 0) setOutput("report-path", report);
+  if (behavtest(cli, repArgs, "behavtest report").code === 0) setOutput("report-path", report);
 
   // 4. decide
   let failed = false;
@@ -191,24 +199,24 @@ export async function main() {
   const runUrl = env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}` : "";
   const noBaseline = hasBaseline
     ? ""
-    : `\n> **No baseline yet** (\`${baseline}\`), so nothing was compared. Create one from a good run and commit it:\n> \`npx regrade run ${suite} --export ${baseline} --compact\`\n`;
-  const body = `### Regrade: ${result === "pass" ? "✅ pass" : "❌ fail"} (${why})\n${noBaseline}\n${md}\n${runUrl ? `\n[Workflow run and HTML report](${runUrl})\n` : ""}`;
+    : `\n> **No baseline yet** (\`${baseline}\`), so nothing was compared. Create one from a good run and commit it:\n> \`npx behavtest run ${suite} --export ${baseline} --compact\`\n`;
+  const body = `### BehavTest: ${result === "pass" ? "✅ pass" : "❌ fail"} (${why})\n${noBaseline}\n${md}\n${runUrl ? `\n[Workflow run and HTML report](${runUrl})\n` : ""}`;
   summary(body);
   if (input("COMMENT") === "true") {
     try {
       await comment(body);
     } catch (err) {
-      process.stdout.write(`::warning title=Regrade::Could not comment on the pull request: ${oneLine(err.message)}\n`);
+      process.stdout.write(`::warning title=BehavTest::Could not comment on the pull request: ${oneLine(err.message)}\n`);
     }
   }
-  return done(result, failed ? 1 : 0, failed ? `Regrade: ${why}` : "");
+  return done(result, failed ? 1 : 0, failed ? `BehavTest: ${why}` : "");
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().then(
-    (r) => process.stdout.write(`regrade action: ${r.result}${r.message ? ` (${r.message})` : ""}\n`),
+    (r) => process.stdout.write(`behavtest action: ${r.result}${r.message ? ` (${r.message})` : ""}\n`),
     (err) => {
-      process.stdout.write(`::error title=Regrade::${oneLine(err?.stack ?? err)}\n`);
+      process.stdout.write(`::error title=BehavTest::${oneLine(err?.stack ?? err)}\n`);
       setOutput("result", "error");
       setOutput("exit-code", "2");
       setOutput("message", oneLine(`internal error: ${err?.message ?? err}`));

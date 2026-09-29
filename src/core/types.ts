@@ -1,6 +1,6 @@
 /**
  * Shared contracts. The adapter and scorer interfaces are the two most stable
- * surfaces in Regrade: change them only additively.
+ * surfaces in BehavTest: change them only additively.
  */
 import type { PriceTable } from "../pricing/cost.js";
 
@@ -152,7 +152,7 @@ export interface Scorer {
   fingerprint?: string;
   /**
    * True for scorers that ask an LLM judge (resolved from `scorerConfig.<name>.judge`, `--judge`,
-   * `defaults.judge` or `REGRADE_JUDGE`). The run's judge then becomes part of the case's identity.
+   * `defaults.judge` or `BEHAVTEST_JUDGE`). The run's judge then becomes part of the case's identity.
    */
   usesJudge?: boolean;
   score(args: ScoreArgs): Promise<ScoreResult>;
@@ -214,7 +214,7 @@ export interface TestSuite {
   defaults?: SuiteDefaults;
   pricing?: PriceEntryInput[];
   pipeline: { adapter: string; config: Record<string, unknown> };
-  /** Run the suite once per variant, side by side (`regrade matrix`). */
+  /** Run the suite once per variant, side by side (`behavtest matrix`). */
   variants?: SuiteVariant[];
   cases: TestCase[];
 }
@@ -269,7 +269,7 @@ export interface RunRecord {
   startedAt: string;
   finishedAt: string | null;
   status: RunStatus;
-  regradeVersion: string;
+  behavtestVersion: string;
   gitSha: string | null;
   gitDirty: boolean | null;
   label: string | null;

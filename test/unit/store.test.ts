@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 function tmpDb(): string {
-  const d = mkdtempSync(join(tmpdir(), "regrade-store-"));
+  const d = mkdtempSync(join(tmpdir(), "behavtest-store-"));
   dirs.push(d);
   return join(d, "nested", "results.db");
 }
@@ -39,7 +39,7 @@ const newRun = (runId: string, over = {}) => ({
   suiteName: "suite",
   suiteHash: "sh",
   startedAt: "2026-09-21T10:00:00.000Z",
-  regradeVersion: "0.1.0",
+  behavtestVersion: "0.1.0",
   gitSha: "abc123",
   gitDirty: true,
   label: "v1",
@@ -184,13 +184,13 @@ describe("SqliteStore", () => {
     expect(b.schemaVersion()).toBe(LATEST_SCHEMA_VERSION);
   });
 
-  it("refuses a database created by a newer Regrade", () => {
+  it("refuses a database created by a newer BehavTest", () => {
     const path = tmpDb();
     open(path).close();
     const raw = new Database(path);
     raw.pragma(`user_version = ${LATEST_SCHEMA_VERSION + 5}`);
     raw.close();
-    expect(() => new SqliteStore(path)).toThrow(/newer than this Regrade/);
+    expect(() => new SqliteStore(path)).toThrow(/newer than this BehavTest/);
   });
 
   it("stores score metadata and reads it back", () => {
@@ -213,7 +213,7 @@ describe("SqliteStore", () => {
     raw.close();
     const store = open(path);
     expect(store.schemaVersion()).toBe(LATEST_SCHEMA_VERSION);
-    expect(store.getRun("old")).toMatchObject({ runId: "old", regradeVersion: "0.3.1" });
+    expect(store.getRun("old")).toMatchObject({ runId: "old", behavtestVersion: "0.3.1" });
     store.createRun(newRun("after-upgrade"));
     store.saveAttempt("after-upgrade", attempt({ scores: [{ scorerName: "llmJudge", pass: true, value: 1, metadata: { judge: "x:y" } }] }));
     expect(store.getAttempts("after-upgrade")[0]?.scores[0]?.metadata).toEqual({ judge: "x:y" });

@@ -5,7 +5,7 @@ import { testSuiteSchema } from "../../core/testSuite.js";
 
 export function buildSuiteJsonSchema(): Record<string, unknown> {
   const schema = z.toJSONSchema(testSuiteSchema) as Record<string, unknown>;
-  return { title: "Regrade test suite", ...schema };
+  return { title: "BehavTest test suite", ...schema };
 }
 
 export function schemaCommand(opts: { out?: string }): void {

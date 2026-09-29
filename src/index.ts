@@ -8,7 +8,7 @@ import { registerBuiltins } from "./builtins.js";
 registerBuiltins(defaultRegistry);
 
 export * from "./core/types.js";
-export { ConfigError, AdapterError, JudgeError, RegradeError } from "./core/errors.js";
+export { ConfigError, AdapterError, JudgeError, BehavTestError, RegradeError } from "./core/errors.js";
 export { Registry, defaultRegistry, registerAdapter, registerScorer } from "./core/registry.js";
 export { createRegistry, registerBuiltins } from "./builtins.js";
 export { loadSuite, parseSuite, checkSuite, testSuiteSchema } from "./core/testSuite.js";
@@ -25,7 +25,7 @@ export type { CaseOutcome } from "./core/verdict.js";
 export { withRetry } from "./core/retry.js";
 export { SqliteStore } from "./store/sqliteStore.js";
 export type { Store, NewRun, LabelKey, StoredLabel, MatrixSummary } from "./store/store.js";
-export { buildRunFile, parseRunFile, readRunFile, serializeRunFile, writeRunFile, RUN_FILE_KIND, RUN_FILE_VERSION } from "./store/runFile.js";
+export { buildRunFile, parseRunFile, readRunFile, serializeRunFile, writeRunFile, RUN_FILE_KIND, LEGACY_RUN_FILE_KIND, RUN_FILE_VERSION } from "./store/runFile.js";
 export type { RunFile, LoadedRun } from "./store/runFile.js";
 export { computeCost, defaultPrices, mergePrices } from "./pricing/cost.js";
 export type { PriceTable, PriceEntry } from "./pricing/cost.js";

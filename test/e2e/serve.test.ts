@@ -22,19 +22,19 @@ afterEach(async () => {
 });
 
 function dbWithRun(): string {
-  const dir = mkdtempSync(join(tmpdir(), "regrade-serve-"));
+  const dir = mkdtempSync(join(tmpdir(), "behavtest-serve-"));
   dirs.push(dir);
   const db = join(dir, "results.db");
   const s = new SqliteStore(db);
   const attempts = [attempt({ caseId: "order", scores: [{ scorerName: "llmJudge", pass: true, value: 1, metadata: { judge: "openai:x" } }] })];
-  s.createRun({ runId: "run-serve-1", suiteName: "served", suiteHash: "h", startedAt: "2026-09-28T10:00:00.000Z", regradeVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {} });
+  s.createRun({ runId: "run-serve-1", suiteName: "served", suiteHash: "h", startedAt: "2026-09-28T10:00:00.000Z", behavtestVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {} });
   s.saveAttempt("run-serve-1", attempts[0]!);
   s.finishRun("run-serve-1", "completed", "2026-09-28T10:00:01.000Z", summarize(attempts));
   s.close();
   return db;
 }
 
-/** Start `regrade serve` and resolve with the URL it prints. */
+/** Start `behavtest serve` and resolve with the URL it prints. */
 function serve(args: string[]): Promise<{ child: ChildProcess; url: string; out: () => string; err: () => string }> {
   return new Promise((res, rej) => {
     const child = spawn(process.execPath, [cli, "serve", ...args], { env: { ...process.env, NO_COLOR: "1" } });
@@ -62,14 +62,14 @@ function exited(c: ChildProcess): Promise<number | null> {
   return new Promise((r) => (c.exitCode !== null || c.signalCode !== null ? r(c.exitCode) : c.on("close", (code) => r(code))));
 }
 
-describe("regrade serve (built binary)", () => {
+describe("behavtest serve (built binary)", () => {
   it("serves the dashboard and API for a database, and labels written through it reach calibrate", async () => {
     const db = dbWithRun();
     const s = await serve(["--db", db, "--port", "0"]);
     expect(s.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
     const page = await fetch(s.url);
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain("regrade-config");
+    expect(await page.text()).toContain("behavtest-config");
     const runs = (await (await fetch(`${s.url}api/v1/runs`)).json()) as { runs: Array<{ runId: string }> };
     expect(runs.runs.map((r) => r.runId)).toEqual(["run-serve-1"]);
     const put = await fetch(`${s.url}api/v1/labels`, {
@@ -103,7 +103,7 @@ describe("regrade serve (built binary)", () => {
   });
 
   it("fails with exit code 2 when there is no database, or the port is taken", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "regrade-serve-"));
+    const dir = mkdtempSync(join(tmpdir(), "behavtest-serve-"));
     dirs.push(dir);
     const none = spawn(process.execPath, [cli, "serve", "--db", join(dir, "missing.db")], { env: { ...process.env, NO_COLOR: "1" } });
     let err = "";

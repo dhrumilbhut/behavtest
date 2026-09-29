@@ -37,7 +37,7 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 const workdir = () => {
-  const d = mkdtempSync(join(tmpdir(), "regrade-e2e3-"));
+  const d = mkdtempSync(join(tmpdir(), "behavtest-e2e3-"));
   dirs.push(d);
   return d;
 };
@@ -47,7 +47,7 @@ const write = (dir: string, name: string, body: string) => {
 };
 
 const tsSuite = (expectedForms: string) => `
-import type { CodeSuite } from "regrade"; // regrade is NOT installed here: a type-only import must be erased
+import type { CodeSuite } from "behavtest"; // behavtest is NOT installed here: a type-only import must be erased
 import { shout } from "./helper.ts";
 
 interface Row { id: string; q: string; want: string }
@@ -69,7 +69,7 @@ describe("code suites (built binary)", () => {
   it.skipIf(!hasTs)("runs a TypeScript suite: type-only import erased, local .ts import, inline scorers, function pipeline", async () => {
     const cwd = workdir();
     write(cwd, "helper.ts", helper);
-    write(cwd, "s.suite.ts", tsSuite(`[{ id: "a", q: "hello", want: "HELLO" }, { id: "b", q: "regrade", want: "REGRADE" }]`));
+    write(cwd, "s.suite.ts", tsSuite(`[{ id: "a", q: "hello", want: "HELLO" }, { id: "b", q: "behavtest", want: "BEHAVTEST" }]`));
     const r = await runCli(["run", "s.suite.ts", "--json", "r.json"], cwd);
     expect(r.stderr).toBe("");
     expect(r.code).toBe(0);
@@ -81,11 +81,11 @@ describe("code suites (built binary)", () => {
   it.skipIf(!hasTs)("a failing inline scorer fails the case (exit 1) with its reasoning", async () => {
     const cwd = workdir();
     write(cwd, "helper.ts", helper);
-    write(cwd, "s.suite.ts", tsSuite(`[{ id: "a", q: "hello", want: "HELLO" }, { id: "b", q: "regrade", want: "SOMETHING ELSE" }]`));
+    write(cwd, "s.suite.ts", tsSuite(`[{ id: "a", q: "hello", want: "HELLO" }, { id: "b", q: "behavtest", want: "SOMETHING ELSE" }]`));
     const r = await runCli(["run", "s.suite.ts"], cwd);
     expect(r.code).toBe(1);
     expect(r.stdout).toMatch(/✗ b\s+\d+ ms\s+isUpper ✓\s+matchesWant ✗ \(want SOMETHING ELSE\)/);
-    const db = new Database(join(cwd, ".regrade", "results.db"), { readonly: true });
+    const db = new Database(join(cwd, ".behavtest", "results.db"), { readonly: true });
     expect(db.prepare("SELECT scorer_name FROM scores WHERE pass = 0").pluck().all()).toEqual(["matchesWant"]);
     db.close();
   });
@@ -104,7 +104,7 @@ describe("code suites (built binary)", () => {
 
   describe("module type of the surrounding project", () => {
     const esmSuite = `export default { name: "m", pipeline: { run: () => "x" }, cases: [{ id: "a", input: "i", scorers: ["latencyCost"] }] };\n`;
-    const tsSuiteBody = `import type { CodeSuite } from "regrade";\nexport default { name: "m", pipeline: { run: (i: unknown): string => "x" + String(i) }, cases: [{ id: "a", input: "i", scorers: ["latencyCost"] }] } satisfies CodeSuite;\n`;
+    const tsSuiteBody = `import type { CodeSuite } from "behavtest";\nexport default { name: "m", pipeline: { run: (i: unknown): string => "x" + String(i) }, cases: [{ id: "a", input: "i", scorers: ["latencyCost"] }] } satisfies CodeSuite;\n`;
     const pkg = (type: string) => JSON.stringify({ name: "proj", version: "1.0.0", type });
 
     it.skipIf(!hasTs)('in an explicitly CommonJS project ("type": "commonjs", the npm init default), .mts and .mjs work', async () => {
@@ -134,23 +134,23 @@ describe("code suites (built binary)", () => {
       expect((await runCli(["run", "s.ts"], cwd)).code).toBe(0);
     });
 
-    it.skipIf(!hasTs)("regrade init --ts works inside a CommonJS project", async () => {
+    it.skipIf(!hasTs)("behavtest init --ts works inside a CommonJS project", async () => {
       const cwd = workdir();
       write(cwd, "package.json", pkg("commonjs"));
       expect((await runCli(["init", "--ts"], cwd)).code).toBe(0);
-      const r = await runCli(["run", "regrade/suite.mts"], cwd);
+      const r = await runCli(["run", "behavtest/suite.mts"], cwd);
       expect(r.stderr).toBe("");
       expect(r.code).toBe(0);
     });
   });
 
-  it.skipIf(!hasTs)("regrade init --ts scaffolds a suite that runs immediately with no server and no key", async () => {
+  it.skipIf(!hasTs)("behavtest init --ts scaffolds a suite that runs immediately with no server and no key", async () => {
     const cwd = workdir();
     const init = await runCli(["init", "--ts"], cwd);
     expect(init.code).toBe(0);
-    expect(existsSync(join(cwd, "regrade", "suite.mts"))).toBe(true);
-    expect(existsSync(join(cwd, "regrade", "mock-pipeline.mjs"))).toBe(false);
-    const r = await runCli(["run", "regrade/suite.mts"], cwd);
+    expect(existsSync(join(cwd, "behavtest", "suite.mts"))).toBe(true);
+    expect(existsSync(join(cwd, "behavtest", "mock-pipeline.mjs"))).toBe(false);
+    const r = await runCli(["run", "behavtest/suite.mts"], cwd);
     expect(r.stderr).toBe("");
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("my-first-code-suite · my-agent");
@@ -210,7 +210,7 @@ describe("code suites (built binary)", () => {
       const r = await runCli(["run", "bad.mjs"], cwd);
       expect(r.code).toBe(2);
       expect(r.stderr).toMatch(pattern);
-      expect(existsSync(join(cwd, ".regrade"))).toBe(false); // nothing created
+      expect(existsSync(join(cwd, ".behavtest"))).toBe(false); // nothing created
     });
 
     it("an unsupported extension", async () => {

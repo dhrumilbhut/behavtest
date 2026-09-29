@@ -1,5 +1,5 @@
-name: Regrade LLM regression tests
-description: "Regression tests for LLM apps, agents and RAG pipelines: compare each pull request with a baseline, fail on real drops."
+name: BehavTest behavioral regression tests for AI
+description: "Behavioral regression tests for AI apps, agents and RAG: compare each pull request with a baseline, fail on real drops."
 author: Dhrumil Bhut
 branding:
   icon: check-circle
@@ -10,8 +10,10 @@ inputs:
     description: Path to the suite file (.json, or a code suite .ts .mts .js .mjs), relative to working-directory.
     required: true
   baseline:
-    description: Path to the committed baseline run file. When it does not exist the run still happens, and the summary explains how to create one.
-    default: regrade.baseline.json
+    description: >-
+      Path to the committed baseline run file (default behavtest.baseline.json, or regrade.baseline.json when only
+      that exists). When it does not exist the run still happens, and the summary explains how to create one.
+    default: ""
   gate:
     description: >-
       When to fail the job. regression (default): any case regressed or errored, or the overall pass rate dropped
@@ -28,7 +30,7 @@ inputs:
     description: LLM judge model, e.g. openai:gpt-5.4-nano (overrides the suite).
     default: ""
   args:
-    description: Extra arguments for regrade run, e.g. "--tag smoke --concurrency 8".
+    description: Extra arguments for behavtest run, e.g. "--tag smoke --concurrency 8".
     default: ""
   working-directory:
     description: Directory to run in.
@@ -37,7 +39,7 @@ inputs:
     description: Upload the HTML report, the run file and the Markdown summaries as a workflow artifact.
     default: "true"
   artifact-name:
-    description: Name of the uploaded artifact (default regrade-<job>-<os>).
+    description: Name of the uploaded artifact (default behavtest-<job>-<os>).
     default: ""
   comment:
     description: >-
@@ -48,22 +50,22 @@ inputs:
     description: Token for the pull request comment.
     default: ${{ github.token }}
   node-version:
-    description: Node.js version to set up (Regrade needs 24 or newer).
+    description: Node.js version to set up (BehavTest needs 24 or newer).
     default: "24"
 
 outputs:
   result:
     description: pass or fail (the gate's decision), or error (configuration error or interrupted run).
-    value: ${{ steps.regrade.outputs.result }}
+    value: ${{ steps.behavtest.outputs.result }}
   regressed:
     description: Number of regressed cases compared with the baseline (empty without a baseline).
-    value: ${{ steps.regrade.outputs.regressed }}
+    value: ${{ steps.behavtest.outputs.regressed }}
   run-id:
     description: The id of the run that was made.
-    value: ${{ steps.regrade.outputs.run-id }}
+    value: ${{ steps.behavtest.outputs.run-id }}
   report-path:
     description: Path of the HTML report on the runner.
-    value: ${{ steps.regrade.outputs.report-path }}
+    value: ${{ steps.behavtest.outputs.report-path }}
 
 runs:
   using: composite
@@ -72,36 +74,36 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
 
-    - id: regrade
+    - id: behavtest
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
-        RG_SUITE: ${{ inputs.suite }}
-        RG_BASELINE: ${{ inputs.baseline }}
-        RG_GATE: ${{ inputs.gate }}
-        RG_REPEAT: ${{ inputs.repeat }}
-        RG_MIN_PASS_RATE: ${{ inputs.min-pass-rate }}
-        RG_JUDGE: ${{ inputs.judge }}
-        RG_ARGS: ${{ inputs.args }}
-        RG_ARTIFACT_NAME: ${{ inputs.artifact-name }}
-        RG_COMMENT: ${{ inputs.comment }}
-        RG_TOKEN: ${{ inputs.github-token }}
+        BT_SUITE: ${{ inputs.suite }}
+        BT_BASELINE: ${{ inputs.baseline }}
+        BT_GATE: ${{ inputs.gate }}
+        BT_REPEAT: ${{ inputs.repeat }}
+        BT_MIN_PASS_RATE: ${{ inputs.min-pass-rate }}
+        BT_JUDGE: ${{ inputs.judge }}
+        BT_ARGS: ${{ inputs.args }}
+        BT_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        BT_COMMENT: ${{ inputs.comment }}
+        BT_TOKEN: ${{ inputs.github-token }}
       run: node "$GITHUB_ACTION_PATH/action/main.mjs"
 
-    - if: ${{ always() && inputs.report == 'true' && steps.regrade.outputs.artifact-dir != '' }}
+    - if: ${{ always() && inputs.report == 'true' && steps.behavtest.outputs.artifact-dir != '' }}
       uses: actions/upload-artifact@v7
       with:
-        name: ${{ steps.regrade.outputs.artifact-name }}
-        path: ${{ steps.regrade.outputs.artifact-dir }}
+        name: ${{ steps.behavtest.outputs.artifact-name }}
+        path: ${{ steps.behavtest.outputs.artifact-dir }}
         overwrite: true
         if-no-files-found: ignore
 
-    - if: ${{ always() && steps.regrade.outputs.exit-code != '' && steps.regrade.outputs.exit-code != '0' }}
+    - if: ${{ always() && steps.behavtest.outputs.exit-code != '' && steps.behavtest.outputs.exit-code != '0' }}
       shell: bash
       env:
         # passed through the environment, never pasted into the script
-        RG_MESSAGE: ${{ steps.regrade.outputs.message }}
-        RG_EXIT: ${{ steps.regrade.outputs.exit-code }}
+        BT_MESSAGE: ${{ steps.behavtest.outputs.message }}
+        BT_EXIT: ${{ steps.behavtest.outputs.exit-code }}
       run: |
-        echo "::error title=Regrade::$RG_MESSAGE"
-        exit "$RG_EXIT"
+        echo "::error title=BehavTest::$BT_MESSAGE"
+        exit "$BT_EXIT"

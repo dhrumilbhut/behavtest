@@ -14,7 +14,7 @@ const exact = (pass: boolean) => ({ scorerName: "exactMatch", pass, value: pass 
 
 function addRun(s: SqliteStore, runId: string, startedAt: string, attempts: AttemptRecord[], finish = true, suiteName = "support"): void {
   const run: Omit<RunRecord, "finishedAt" | "summary" | "status"> = {
-    runId, suiteName, suiteHash: "h", startedAt, regradeVersion: "t", gitSha: "abcdef1234", gitDirty: false, label: `label-${runId}`, pipeline: { secretish: "not listed" },
+    runId, suiteName, suiteHash: "h", startedAt, behavtestVersion: "t", gitSha: "abcdef1234", gitDirty: false, label: `label-${runId}`, pipeline: { secretish: "not listed" },
   };
   s.createRun(run);
   for (const a of attempts) s.saveAttempt(runId, a);
@@ -162,7 +162,7 @@ describe("dashboard server guards", () => {
     expect((await api("GET", "/compare?base=aaaa")).status).toBe(400);
     expect((await api("GET", "/runs/zzzz")).json).toEqual({ error: { status: 404, message: 'No run matching "zzzz".' } });
     // "b" is not ambiguous, but the empty-ish prefix shared by no runs is 404; an ambiguous one is 400
-    store.createRun({ runId: "bbbb9999-dup", suiteName: "support", suiteHash: "h", startedAt: "2026-09-28T13:00:00.000Z", regradeVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {} });
+    store.createRun({ runId: "bbbb9999-dup", suiteName: "support", suiteHash: "h", startedAt: "2026-09-28T13:00:00.000Z", behavtestVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: {} });
     expect((await api("GET", "/runs/bbbb")).status).toBe(400);
   });
 });
@@ -283,7 +283,7 @@ describe("dashboard API", () => {
 describe("dashboard API: matrices", () => {
   it("lists matrices, builds one with any reference, and gives each variant its own trend", async () => {
     const mk = (runId: string, variant: string, startedAt: string, pass: boolean) => {
-      store.createRun({ runId, suiteName: "mx", suiteHash: "h", startedAt, regradeVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: { adapter: "fn" }, matrixId: "mmmm-1", variant });
+      store.createRun({ runId, suiteName: "mx", suiteHash: "h", startedAt, behavtestVersion: "t", gitSha: null, gitDirty: null, label: null, pipeline: { adapter: "fn" }, matrixId: "mmmm-1", variant });
       const attempts = [attempt({ caseId: "q", attempt: 1, status: pass ? "passed" : "failed", scores: [exact(pass)] })];
       store.saveAttempt(runId, attempts[0]!);
       store.finishRun(runId, "completed", startedAt, summarize(attempts));

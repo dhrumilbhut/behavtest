@@ -199,7 +199,7 @@ export async function judgePreflight(
     if (!spec) {
       throw new ConfigError(
         `case "${c.id}" uses ${name} but no judge model is configured. Set "defaults.judge" in the suite, ` +
-          'pass --judge, or export REGRADE_JUDGE (format "provider:model", e.g. "anthropic:claude-sonnet-5").',
+          'pass --judge, or export BEHAVTEST_JUDGE (format "provider:model", e.g. "anthropic:claude-sonnet-5").',
       );
     }
     resolveApiKey(parseModelSpec(spec, "judge model").provider, ctx.env);

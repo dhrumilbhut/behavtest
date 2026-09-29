@@ -209,7 +209,7 @@ const run = (runId: string, over: Partial<RunRecord> = {}): RunRecord => ({
   startedAt: "2026-09-21T10:00:00.000Z",
   finishedAt: "2026-09-21T10:01:00.000Z",
   status: "completed",
-  regradeVersion: "0.2.0",
+  behavtestVersion: "0.2.0",
   gitSha: null,
   gitDirty: null,
   label: null,

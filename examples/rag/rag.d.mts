@@ -1,4 +1,4 @@
-// Types for rag.mjs, so TypeScript code (Regrade's own tests, or your code suite) can import it.
+// Types for rag.mjs, so TypeScript code (BehavTest's own tests, or your code suite) can import it.
 export interface PolicyDoc {
   id: string;
   title: string;
