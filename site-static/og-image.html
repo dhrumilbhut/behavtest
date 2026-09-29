@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- Source of og-image.png, the social preview card (1200x630). Regenerate with:
+     msedge --headless=new --disable-gpu --hide-scrollbars --window-size=1200,630 \
+       --screenshot=site-static/og-image.png site-static/og-image.html
+     The terminal lines are real output from examples/nondeterministic (the bot's accuracy 90% -> 60%). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body { background: #0b0d11; color: #eceef2; font: 16px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; padding: 64px 72px; display: flex; flex-direction: column; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 18px; font-weight: 700; font-size: 40px; letter-spacing: -.01em; }
+  .brand svg { width: 56px; height: 56px; }
+  h1 { font-size: 64px; line-height: 1.08; letter-spacing: -.03em; font-weight: 750; margin-top: 28px; max-width: 980px; }
+  h1 span { color: #6ea8fe; }
+  .term { background: #0e1116; border: 1px solid #232832; border-radius: 16px; padding: 22px 26px; font: 21px/1.6 Consolas, "Cascadia Mono", ui-monospace, monospace; color: #e6e9ef; white-space: pre; }
+  .r { color: #f87171; } .d { color: #8b93a1; } .b { font-weight: 700; }
+  .foot { display: flex; justify-content: space-between; color: #8a919d; font-size: 22px; }
+</style>
+</head>
+<body>
+  <div>
+    <div class="brand"><svg viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" rx="7" fill="#6ea8fe"/><path d="M6 9.5l4.5 5 3-3 6.5 6.5M15.5 18h4.5v-4.5" fill="none" stroke="#0b0d11" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>BehavTest</div>
+    <h1>Behavioral regression testing for <span>AI applications</span></h1>
+  </div>
+  <div class="term"><span class="r">✗ regressed</span> shipping-time 10/10 → 5/10  <span class="r">p=0.033 significant</span>
+<span class="d">attempt pass rate  85% [76%–91%] → 56% [45%–67%]</span>
+<span class="r b">overall change  -28.7 pts, p&lt;0.001 → significant regression</span></div>
+  <div class="foot"><span>Repeat every case · score behavior · tell real regressions from noise</span><span>npx behavtest</span></div>
+</body>
+</html>

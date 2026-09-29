@@ -62,7 +62,7 @@ describe("documentation site", () => {
 
   it("every page has a unique title, a description of search-snippet length, and a canonical URL", () => {
     const titles = new Set<string>();
-    for (const page of pages) {
+    for (const page of pages.filter((p) => rel(p) !== "404.html")) {
       const html = read(page);
       const title = /<title>([^<]+)<\/title>/.exec(html)?.[1];
       // measured as search engines see it: entities decoded
@@ -92,7 +92,7 @@ describe("documentation site", () => {
 
   it("writes a sitemap of every page, robots.txt, llms.txt and llms-full.txt", () => {
     const sitemap = read(join(out, "sitemap.xml"));
-    for (const page of pages) {
+    for (const page of pages.filter((p) => rel(p) !== "404.html")) {
       const url = `https://dhrumilbhut.github.io/behavtest/${rel(page).replace(/index\.html$/, "")}`;
       expect(sitemap).toContain(`<loc>${url}</loc>`);
     }
@@ -119,6 +119,26 @@ describe("documentation site", () => {
     expect(html).toMatch(/<h1>Behavioral regression testing for <span>AI applications<\/span><\/h1>/);
     expect(html).toContain('<div class="install"><code>npx behavtest init --ts &amp;&amp; npx behavtest run behavtest/suite.mts</code></div>');
     for (const id of ["features", "how-it-works", "how-to-guides", "reference"]) expect(html).toContain(`id="${id}"`);
+  });
+
+  it("gives every page social preview tags and the site icon", () => {
+    expect(existsSync(join(out, "favicon.svg"))).toBe(true);
+    for (const page of pages) {
+      const html = read(page);
+      for (const tag of ['property="og:image"', 'property="og:title"', 'property="og:description"', 'name="twitter:card" content="summary_large_image"', 'name="twitter:title"', 'name="twitter:description"', 'name="twitter:image"']) {
+        expect(html, `${rel(page)} ${tag}`).toContain(tag);
+      }
+      expect(html, rel(page)).toMatch(/<link rel="icon" type="image\/svg\+xml" href="(\.\/|(\.\.\/)*)favicon\.svg">/);
+      if (rel(page) !== "404.html") expect(html, rel(page)).not.toContain('content="noindex"');
+    }
+  });
+
+  it("has a 404 page that is not indexed and whose links work at any depth", () => {
+    const html = read(join(out, "404.html"));
+    expect(html).toContain('<meta name="robots" content="noindex">');
+    expect(html).toContain('<base href="https://dhrumilbhut.github.io/behavtest/">');
+    expect(html).not.toContain('rel="canonical"');
+    expect(read(join(out, "sitemap.xml"))).not.toContain("404");
   });
 
   it("escapes HTML in code examples", () => {

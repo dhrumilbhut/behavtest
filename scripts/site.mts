@@ -486,8 +486,15 @@ function faqLd(md: string) {
   return { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: entities };
 }
 
-function layout(page: Page, content: string, extraHead: string): string {
-  const up = upFrom(page);
+/** The site icon, written to favicon.svg. */
+const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 26"><rect width="26" height="26" rx="7" fill="#2563eb"/><path d="M6 9.5l4.5 5 3-3 6.5 6.5M15.5 18h4.5v-4.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>\n`;
+
+/** Social preview card (1200x630), copied from site-static/ by the CLI below. */
+const OG_IMAGE = `${SITE}/og-image.png`;
+
+function layout(page: Page, content: string, extraHead: string, opts: { notFound?: boolean } = {}): string {
+  // the 404 page is served at any depth: its links start from <base>, the site root
+  const up = opts.notFound ? "./" : upFrom(page);
   const home = up || "./";
   const url = `${SITE}/${page.path}`;
   const description = page.kind === "home"
@@ -501,16 +508,22 @@ function layout(page: Page, content: string, extraHead: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
-<link rel="canonical" href="${url}">
+${opts.notFound ? `<meta name="robots" content="noindex">\n<base href="${SITE}/">` : `<link rel="canonical" href="${url}">`}
 <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0b0d11" media="(prefers-color-scheme: dark)">
 <meta property="og:type" content="${page.kind === "home" ? "website" : "article"}">
 <meta property="og:site_name" content="BehavTest">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
-<meta property="og:url" content="${url}">
-<meta name="twitter:card" content="summary">
-<link rel="icon" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 26"><rect width="26" height="26" rx="7" fill="#2563eb"/><path d="M6 9.5l4.5 5 3-3 6.5 6.5M15.5 18h4.5v-4.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>')}">
+${opts.notFound ? "" : `<meta property="og:url" content="${url}">\n`}<meta property="og:image" content="${OG_IMAGE}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="BehavTest: behavioral regression testing for AI applications">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(title)}">
+<meta name="twitter:description" content="${esc(description)}">
+<meta name="twitter:image" content="${OG_IMAGE}">
+<link rel="icon" type="image/svg+xml" href="${up}favicon.svg">
 <link rel="alternate" type="text/plain" title="llms.txt" href="${up}llms.txt">
 <script>${THEME_EARLY}</script>
 ${extraHead}
@@ -731,6 +744,26 @@ export function buildSite(readme: string, content: Page[] = loadContentPages(joi
   const urls = [...pages.map((p) => `${SITE}/${p.path}`), `${SITE}/sample/`];
   files.set("sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u}</loc></url>`).join("\n")}\n</urlset>\n`);
   files.set("robots.txt", `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
+  files.set("favicon.svg", FAVICON_SVG);
+  // GitHub Pages serves 404.html for any missing path, at any depth: <base> makes its links absolute
+  const notFound: Page = {
+    path: "",
+    title: "Page not found",
+    heading: "Page not found",
+    body: "",
+    kind: "doc",
+    description: "This page does not exist. BehavTest: behavioral regression testing for AI applications. Start from the documentation home.",
+  };
+  const learnLinks = pages.filter((p) => p.kind === "learn").map((p) => `<li><a href="${p.path}">${esc(p.title)}</a></li>`).join("");
+  files.set(
+    "404.html",
+    layout(
+      notFound,
+      `<main class="doc">\n<h1>Page not found</h1>\n<p>There is no page at this address. It may have moved: the documentation was reorganized when Regrade became BehavTest.</p>\n<ul><li><a href="./">Documentation home</a></li><li><a href="docs/quickstart/">Quickstart</a></li><li><a href="integrations/">Integrations</a></li><li><a href="docs/troubleshooting/">Troubleshooting</a></li></ul>\n<h2>Learn</h2>\n<ul>${learnLinks}</ul>\n</main>`,
+      "",
+      { notFound: true },
+    ),
+  );
   return files;
 }
 
@@ -743,6 +776,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     writeFileSync(join(outDir, path), text);
   }
   copyFileSync(join(root, "llms.txt"), join(outDir, "llms.txt"));
+  copyFileSync(join(root, "site-static", "og-image.png"), join(outDir, "og-image.png"));
   copyFileSync(join(root, "README.md"), join(outDir, "llms-full.txt"));
   process.stdout.write(`site: ${files.size} files + llms.txt, llms-full.txt → ${outDir}\n`);
 }
