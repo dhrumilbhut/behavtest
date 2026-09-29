@@ -1,6 +1,7 @@
 ---
 path: comparisons/deepeval/
 title: BehavTest vs DeepEval
+label: BehavTest vs DeepEval
 description: BehavTest and DeepEval compared: pytest-style LLM tests and metrics versus repeated runs with statistical regression detection, and when each fits.
 kind: comparison
 order: 2

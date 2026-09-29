@@ -1,6 +1,7 @@
 ---
 path: integrations/ollama/
 title: Ollama and local LLM regression testing with BehavTest
+label: Ollama and OpenAI-compatible servers
 description: Regression test local and self-hosted models with BehavTest: Ollama and other OpenAI-compatible servers through the openai adapter, with a working example.
 kind: integration
 order: 3

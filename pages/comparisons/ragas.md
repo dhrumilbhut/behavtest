@@ -1,6 +1,7 @@
 ---
 path: comparisons/ragas/
 title: BehavTest vs Ragas
+label: BehavTest vs Ragas
 description: BehavTest and Ragas compared for RAG and agent testing: a metrics library versus a regression-testing workflow with repeated runs and significance tests.
 kind: comparison
 order: 3

@@ -1,6 +1,7 @@
 ---
 path: integrations/anthropic/
 title: Anthropic Claude regression testing with BehavTest
+label: Anthropic (Claude)
 description: Regression test prompts and Claude models with BehavTest: a suite for the Anthropic Messages API, repeated runs, Claude as the LLM judge, and CI.
 kind: integration
 order: 2

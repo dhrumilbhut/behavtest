@@ -1,6 +1,7 @@
 ---
 path: integrations/http/
 title: Regression test any HTTP AI service (Python, FastAPI)
+label: HTTP services: Python, FastAPI, any language
 description: Test an AI application in any language with BehavTest's HTTP adapter: the request and response contract, a FastAPI example with tool steps, and CI.
 kind: integration
 order: 4

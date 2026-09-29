@@ -1,6 +1,7 @@
 ---
 path: integrations/vercel-ai-sdk/
 title: Vercel AI SDK regression testing with BehavTest
+label: Vercel AI SDK
 description: Regression test Vercel AI SDK code with BehavTest: call generateText from a TypeScript suite, check answers, token usage and tool calls, compare runs.
 kind: integration
 order: 6

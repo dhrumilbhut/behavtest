@@ -1,6 +1,7 @@
 ---
 path: docs/statistics/
 title: Statistical testing in BehavTest
+label: Statistical testing
 description: The statistics behind behavtest compare: Wilson intervals, Fisher's exact test, a case-stratified permutation test, bootstrap intervals, and their limits.
 kind: doc
 order: 1

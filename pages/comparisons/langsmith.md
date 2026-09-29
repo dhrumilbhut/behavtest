@@ -1,6 +1,7 @@
 ---
 path: comparisons/langsmith/
 title: BehavTest vs LangSmith
+label: BehavTest vs LangSmith
 description: BehavTest and LangSmith compared: a local regression-testing CLI versus a hosted platform for tracing, evaluation and monitoring, and when each fits.
 kind: comparison
 order: 4

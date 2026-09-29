@@ -141,6 +141,7 @@ interface Page {
   body: string; // Markdown, starting with the page's own heading
   kind: Kind;
   description?: string; // pages/ only: the meta description (README pages derive theirs from the text)
+  label?: string; // pages/ only: a short name for link tiles and the pager (default: the title)
   order?: number; // pages/ only: position within its kind
 }
 
@@ -170,7 +171,7 @@ export function loadContentPages(dir: string): Page[] {
     if (!kinds.has(meta.kind as Kind)) throw new Error(`${file}: kind must be learn, integration, comparison or doc`);
     if (!/^[a-z0-9-]+(\/[a-z0-9-]+)*\/$/.test(meta.path!)) throw new Error(`${file}: path must look like "x/" or "x/y/"`);
     if (meta.description!.length > 160) throw new Error(`${file}: description is ${meta.description!.length} characters (max 160)`);
-    return { path: meta.path!, title: meta.title!, heading, body, kind: meta.kind as Kind, description: meta.description, order: Number(meta.order ?? 100) };
+    return { path: meta.path!, title: meta.title!, heading, body, kind: meta.kind as Kind, description: meta.description, label: meta.label || undefined, order: Number(meta.order ?? 100) };
   }).sort((a, b) => (a.kind === b.kind ? a.order! - b.order! || a.path.localeCompare(b.path) : 0));
 }
 
@@ -500,7 +501,8 @@ function layout(page: Page, content: string, extraHead: string, opts: { notFound
   const description = page.kind === "home"
     ? "Behavioral regression testing for AI applications: run LLM app, agent and RAG test cases repeatedly, compare runs statistically, fail CI on real regressions."
     : page.description ?? describe(page.body.replace(/^# .*$/m, ""), page.title);
-  const title = page.kind === "home" ? page.title : `${page.title} | BehavTest`;
+  // "X | BehavTest", unless the title already names BehavTest ("BehavTest vs Promptfoo")
+  const title = page.kind === "home" || page.title.includes("BehavTest") ? page.title : `${page.title} | BehavTest`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -589,7 +591,7 @@ function landing(pages: Page[]): string {
   const learn = pages.filter((p) => p.kind === "learn");
   const integrations = pages.filter((p) => p.kind === "integration" && p.path !== "integrations/");
   const comparisons = pages.filter((p) => p.kind === "comparison" && p.path !== "comparisons/");
-  const linkList = (list: Page[]) => `<ul class="links">${list.map((p) => `<li><a href="${p.path}">${esc(p.title)}</a></li>`).join("")}</ul>`;
+  const linkList = (list: Page[]) => `<ul class="links">${list.map((p) => `<li><a href="${p.path}">${esc(p.label ?? p.title)}</a></li>`).join("")}</ul>`;
   const section = (id: string, eyebrow: string, h2: string, sub: string, list: Page[], more = "") =>
     list.length ? `<section class="block" id="${id}"><div class="wrap">\n<p class="eyebrow">${eyebrow}</p>\n<h2>${h2}</h2>\n<p class="sub">${sub}</p>\n${linkList(list)}${more}\n</div></section>\n\n` : "";
   const feature = (icon: string, title: string, text: string, href: string) =>
@@ -730,7 +732,7 @@ export function buildSite(readme: string, content: Page[] = loadContentPages(joi
       const prev = ordered[i - 1];
       const next = ordered[i + 1];
       const up = upFrom(page);
-      pager = `<nav class="pager" aria-label="Pages">${prev ? `<a href="${up}${prev.path}"><small>Previous</small>← ${esc(prev.title)}</a>` : ""}${next ? `<a class="next" href="${up}${next.path}"><small>Next</small>${esc(next.title)} →</a>` : ""}</nav>`;
+      pager = `<nav class="pager" aria-label="Pages">${prev ? `<a href="${up}${prev.path}"><small>Previous</small>← ${esc(prev.label ?? prev.title)}</a>` : ""}${next ? `<a class="next" href="${up}${next.path}"><small>Next</small>${esc(next.label ?? next.title)} →</a>` : ""}</nav>`;
       content = docPage(page, body, pager);
       const crumbs = [...trail(page).filter(([, p]) => !p.startsWith("#")), [page.title, page.path] as [string, string]];
       const breadcrumbs = {

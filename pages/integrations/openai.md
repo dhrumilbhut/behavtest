@@ -1,6 +1,7 @@
 ---
 path: integrations/openai/
 title: OpenAI regression testing with BehavTest
+label: OpenAI
 description: Regression test prompts and models on the OpenAI API with BehavTest: suite setup, repeated runs, an OpenAI model as the LLM judge, cost limits, and CI.
 kind: integration
 order: 1

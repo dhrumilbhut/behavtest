@@ -1,6 +1,7 @@
 ---
 path: integrations/langchain/
 title: LangChain regression testing with BehavTest
+label: LangChain
 description: Regression test LangChain chains and RAG pipelines with BehavTest: Python over HTTP or LangChain.js in-process, with retrieval checked against expected docs.
 kind: integration
 order: 5

@@ -1,6 +1,7 @@
 ---
 path: comparisons/promptfoo/
 title: BehavTest vs Promptfoo
+label: BehavTest vs Promptfoo
 description: BehavTest and Promptfoo compared: repeated runs, statistical regression detection, assertions, RAG and agent checks, CI, red teaming, and when each fits.
 kind: comparison
 order: 1
