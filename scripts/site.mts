@@ -440,7 +440,14 @@ section.block h2 { font-size: clamp(26px, 3.2vw, 34px); line-height: 1.2; letter
 .links a:hover { border-color: var(--accent); }
 .links a:hover::after { color: var(--accent); transform: translateX(3px); }
 .links small { color: var(--muted); font-weight: 400; font-size: 13px; white-space: nowrap; margin-left: auto; }
-.byline { color: var(--muted); font-size: 14px; margin: -8px 0 28px; }
+/* blog: these must out-rank the generic .doc p / .doc h2 rules further down */
+.doc .byline { color: var(--muted); font-size: 14px; margin: -8px 0 28px; }
+.doc .post { padding: 22px 0; border-top: 1px solid var(--line); }
+.doc .post h2 { margin: 0 0 6px; padding: 0; border: 0; font-size: 21px; }
+.doc .post h2 a { color: var(--ink); text-decoration: none; }
+.doc .post h2 a:hover { color: var(--accent); }
+.doc .post .byline { margin: 0 0 8px; }
+.doc .post p { margin: 0; }
 .doc figure { margin: 28px 0; }
 .doc figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
 .doc figcaption { color: var(--muted); font-size: 13.5px; line-height: 1.5; margin-top: 10px; }
@@ -546,7 +553,7 @@ const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 26"
 /** Social preview card (1200x630), copied from site-static/ by the CLI below. */
 const OG_IMAGE = `${SITE}/og-image.png`;
 
-function layout(page: Page, content: string, extraHead: string, opts: { notFound?: boolean; image?: string; imageAlt?: string } = {}): string {
+function layout(page: Page, content: string, extraHead: string, opts: { notFound?: boolean; image?: string; imageAlt?: string; blog?: boolean } = {}): string {
   // the 404 page is served at any depth: its links start from <base>, the site root
   const up = opts.notFound ? "./" : upFrom(page);
   const home = up || "./";
@@ -579,7 +586,7 @@ ${opts.notFound ? "" : `<meta property="og:url" content="${url}">\n`}<meta prope
 <meta name="twitter:description" content="${esc(description)}">
 <meta name="twitter:image" content="${opts.image ?? OG_IMAGE}">
 <link rel="icon" type="image/svg+xml" href="${up}favicon.svg">
-<link rel="alternate" type="text/plain" title="llms.txt" href="${up}llms.txt">
+<link rel="alternate" type="text/plain" title="llms.txt" href="${up}llms.txt">${opts.blog ? `\n<link rel="alternate" type="application/rss+xml" title="BehavTest blog" href="${up}blog/feed.xml">` : ""}
 <script>${THEME_EARLY}</script>
 ${extraHead}
 <style>${CSS}</style>
@@ -590,7 +597,7 @@ ${extraHead}
 <nav class="menu" aria-label="Site">
 <a href="${up}docs/quickstart/">Quickstart</a>
 <a class="opt" href="${up}#learn">Learn</a>
-<a class="opt" href="${up}#how-to-guides">Guides</a>
+<a class="opt" href="${up}#how-to-guides">Guides</a>${opts.blog ? `\n<a class="opt" href="${up}blog/">Blog</a>` : ""}
 <a class="opt" href="${up}#reference">Reference</a>
 <a class="opt" href="${up}docs/faq/">FAQ</a>
 <a class="opt" href="${up}sample/">Sample report</a>
@@ -603,7 +610,7 @@ ${content}
 <span class="sp">BehavTest ${esc(pkg.version)} · MIT license · formerly Regrade</span>
 <a href="${up}#learn">Learn</a>
 <a href="${up}integrations/">Integrations</a>
-<a href="${up}comparisons/">Comparisons</a>
+<a href="${up}comparisons/">Comparisons</a>${opts.blog ? `\n<a href="${up}blog/">Blog</a>` : ""}
 <a href="${REPO}">GitHub</a>
 <a href="https://www.npmjs.com/package/behavtest">npm</a>
 <a href="${REPO}/blob/main/CHANGELOG.md">Changelog</a>
@@ -624,7 +631,7 @@ function trail(page: Page): [string, string][] {
     learn: ["Learn", "#learn"],
     integration: ["Integrations", "integrations/"],
     comparison: ["Comparisons", "comparisons/"],
-    blog: ["Blog", "#blog"],
+    blog: ["Blog", "blog/"],
   };
   if (page.kind === "home") return [];
   const s = section[page.kind];
@@ -650,6 +657,7 @@ function landing(pages: Page[]): string {
   const integrations = pages.filter((p) => p.kind === "integration" && p.path !== "integrations/");
   const comparisons = pages.filter((p) => p.kind === "comparison" && p.path !== "comparisons/");
   const posts = pages.filter((p) => p.kind === "blog"); // already newest first
+  const LATEST = 3; // the landing page shows the newest few; /blog/ lists them all
   const linkList = (list: Page[]) =>
     `<ul class="links">${list.map((p) => `<li><a href="${p.path}">${esc(p.label ?? p.title)}${p.date ? ` <small><time datetime="${p.date}">${longDate(p.date)}</time></small>` : ""}</a></li>`).join("")}</ul>`;
   const section = (id: string, eyebrow: string, h2: string, sub: string, list: Page[], more = "") =>
@@ -733,7 +741,7 @@ behavtest compare \\
 </div>
 </div></section>
 
-${section("learn", "Learn", "Testing AI applications, from first principles", "What regression testing means when outputs are nondeterministic, how it differs from evaluation, and how to do it in practice. Useful whether or not you use BehavTest.", learn)}${section("blog", "Blog", "Notes from building BehavTest", "Articles on behavioral regression testing and on the decisions behind BehavTest, newest first.", posts)}${section("integrations", "Integrations", "Test the stack you already have", "Step-by-step setups for the providers and frameworks BehavTest works with, each with a working example.", integrations, `<p class="note"><a href="integrations/">All integrations</a></p>`)}${section("comparisons", "Comparisons", "How BehavTest relates to other tools", "Neutral, sourced comparisons with other LLM evaluation and testing tools, and when each approach fits.", comparisons, `<p class="note"><a href="comparisons/">All comparisons</a></p>`)}<section class="block" id="how-to-guides"><div class="wrap">
+${section("learn", "Learn", "Testing AI applications, from first principles", "What regression testing means when outputs are nondeterministic, how it differs from evaluation, and how to do it in practice. Useful whether or not you use BehavTest.", learn)}${section("blog", "Blog", "Notes from building BehavTest", "Articles on behavioral regression testing and on the decisions behind BehavTest, newest first.", posts.slice(0, LATEST), `<p class="note"><a href="blog/">All posts</a> · <a href="blog/feed.xml">RSS feed</a></p>`)}${section("integrations", "Integrations", "Test the stack you already have", "Step-by-step setups for the providers and frameworks BehavTest works with, each with a working example.", integrations, `<p class="note"><a href="integrations/">All integrations</a></p>`)}${section("comparisons", "Comparisons", "How BehavTest relates to other tools", "Neutral, sourced comparisons with other LLM evaluation and testing tools, and when each approach fits.", comparisons, `<p class="note"><a href="comparisons/">All comparisons</a></p>`)}<section class="block" id="how-to-guides"><div class="wrap">
 <p class="eyebrow">How-to guides</p>
 <h2>Start from what you want to do</h2>
 <p class="sub">Short, task-first guides with copy-paste examples.</p>
@@ -755,11 +763,88 @@ ${install("npx behavtest init --ts && npx behavtest run behavtest/suite.mts")}
 </main>`;
 }
 
+const BLOG_DESCRIPTION = "Articles on behavioral regression testing for AI applications, and on the decisions behind BehavTest, newest first.";
+
+/** /blog/: every post, newest first, with its date, description and topics. */
+function blogIndex(posts: Page[]): string {
+  const page: Page = { path: "blog/", title: "Blog", heading: "Blog", body: "", kind: "blog", description: BLOG_DESCRIPTION };
+  const up = upFrom(page);
+  const items = posts
+    .map(
+      (p) => `<article class="post">
+<h2><a href="${up}${p.path}">${esc(p.title)}</a></h2>
+<p class="byline"><time datetime="${p.date}">${longDate(p.date!)}</time> · ${p.topics!.map(esc).join(", ")}</p>
+<p>${esc(p.description!)}</p>
+</article>`,
+    )
+    .join("\n");
+  const content = `<main class="doc">
+<p class="crumbs"><a href="${up}">BehavTest</a></p>
+<h1>Blog</h1>
+<p>${esc(BLOG_DESCRIPTION)} Follow along with the <a href="feed.xml">RSS feed</a>.</p>
+${items}
+</main>`;
+  const head =
+    jsonLd({
+      "@context": "https://schema.org",
+      "@type": "Blog",
+      name: "BehavTest blog",
+      description: BLOG_DESCRIPTION,
+      url: `${SITE}/blog/`,
+      isPartOf: `${SITE}/`,
+      blogPost: posts.map((p) => ({ "@type": "BlogPosting", headline: p.title, url: `${SITE}/${p.path}`, datePublished: p.date })),
+    }) +
+    jsonLd({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "BehavTest", item: `${SITE}/` },
+        { "@type": "ListItem", position: 2, name: "Blog", item: `${SITE}/blog/` },
+      ],
+    });
+  return layout(page, content, head, { blog: true });
+}
+
+const xml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const cdata = (s: string) => `<![CDATA[${s.replaceAll("]]>", "]]]]><![CDATA[>")}]]>`;
+const rfc822 = (d: string) => new Date(`${d}T00:00:00Z`).toUTCString();
+
+/** RSS 2.0 with each post's full content (absolute links and images), for readers and for dev.to / Hashnode imports. */
+function rssFeed(posts: Page[], bodies: Map<string, string>): string {
+  const items = posts
+    .map(
+      (p) => `    <item>
+      <title>${xml(p.title)}</title>
+      <link>${SITE}/${p.path}</link>
+      <guid isPermaLink="true">${SITE}/${p.path}</guid>
+      <pubDate>${rfc822(p.date!)}</pubDate>
+      <dc:creator>${xml(pkg.author)}</dc:creator>
+${p.topics!.map((t) => `      <category>${xml(t)}</category>`).join("\n")}
+      <description>${xml(p.description!)}</description>
+      <content:encoded>${cdata(bodies.get(p.path)!.replace(/^<h1[^>]*>[\s\S]*?<\/h1>\n?/, ""))}</content:encoded>
+    </item>`,
+    )
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>BehavTest blog</title>
+    <link>${SITE}/blog/</link>
+    <description>${xml(BLOG_DESCRIPTION)}</description>
+    <language>en</language>
+    <atom:link href="${SITE}/blog/feed.xml" rel="self" type="application/rss+xml"/>
+    <lastBuildDate>${rfc822(posts[0]!.date!)}</lastBuildDate>
+${items}
+  </channel>
+</rss>
+`;
+}
+
 /** llms.txt with a "## Blog" section listing the posts, newest first, before "## Optional" (or at the end). */
 export function llmsWithBlog(llms: string, pages: Page[]): string {
   const posts = pages.filter((p) => p.kind === "blog");
   if (posts.length === 0) return llms;
-  const section = `## Blog\n\n${posts.map((p) => `- [${p.title}](${SITE}/${p.path}) (${p.date}): ${p.description}`).join("\n")}\n\n`;
+  const section = `## Blog\n\nAll posts: ${SITE}/blog/ (RSS: ${SITE}/blog/feed.xml)\n\n${posts.map((p) => `- [${p.title}](${SITE}/${p.path}) (${p.date}): ${p.description}`).join("\n")}\n\n`;
   const at = llms.indexOf("\n## Optional");
   return at === -1 ? `${llms.trimEnd()}\n\n${section}` : `${llms.slice(0, at + 1)}${section}${llms.slice(at + 1)}`;
 }
@@ -778,12 +863,33 @@ export function buildSite(
 ): Map<string, string> {
   const staticDir = opts.staticDir ?? join(root, "site-static");
   const pages = [...splitReadme(readme), ...content];
-  const paths = new Set(pages.map((p) => p.path).concat("sample/", "llms.txt"));
+  const posts = pages.filter((p) => p.kind === "blog"); // newest first
+  const blog = posts.length > 0;
+  const paths = new Set(pages.map((p) => p.path).concat("sample/", "llms.txt", ...(blog ? ["blog/"] : [])));
   for (const p of content) if (pages.filter((q) => q.path === p.path).length > 1) throw new Error(`two pages use the path ${p.path}`);
   const anchors = anchorIndex(pages);
   const files = new Map<string, string>();
   // previous/next links stay within a group: README pages (guides, then reference), or one kind of content page
   const group = (p: Page) => (p.kind === "guide" || p.kind === "doc" ? "readme" : p.kind);
+  /** Images in a page: root-relative under /blog/, a file in site-static/blog/; PNGs get their size. */
+  const imageResolver = (page: Page): ImageMapper => (src) => {
+    // root-relative and under /blog/, like links: "/blog/<slug>/shot.png" lives in site-static/blog/<slug>/
+    if (!/^\/blog\/[a-z0-9-]+\/[\w.-]+\.(png|jpe?g|webp|gif)$/i.test(src)) {
+      throw new Error(`image ${src} on ${page.path}: write it as /blog/<slug>/<file>.png (a file in site-static/blog/<slug>/)`);
+    }
+    const file = join(staticDir, src.slice(1));
+    if (!existsSync(file)) throw new Error(`image ${src} on ${page.path}: site-static${src} does not exist`);
+    return { src: upFrom(page) + src.slice(1), ...(/\.png$/i.test(src) ? pngSize(file) : {}) };
+  };
+  const rendered = new Map<string, string>(); // blog post path -> body HTML with absolute URLs, for the feed
+  const absoluteLinker = (page: Page, a: Map<string, Page>, ps: Set<string>): LinkMapper => {
+    const relative = linker(page, a, ps);
+    return (href) => new URL(relative(href), `${SITE}/${page.path}`).href;
+  };
+  const absoluteImages = (page: Page): ImageMapper => (src) => {
+    const img = imageResolver(page)(src);
+    return { ...img, src: new URL(img.src, `${SITE}/${page.path}`).href };
+  };
   for (const page of pages) {
     const link = linker(page, anchors, paths);
     let content: string;
@@ -808,15 +914,7 @@ export function buildSite(
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       });
     } else {
-      const imageFor: ImageMapper = (src) => {
-        // root-relative and under /blog/, like links: "/blog/<slug>/shot.png" lives in site-static/blog/<slug>/
-        if (!/^\/blog\/[a-z0-9-]+\/[\w.-]+\.(png|jpe?g|webp|gif)$/i.test(src)) {
-          throw new Error(`image ${src} on ${page.path}: write it as /blog/<slug>/<file>.png (a file in site-static/blog/<slug>/)`);
-        }
-        const file = join(staticDir, src.slice(1));
-        if (!existsSync(file)) throw new Error(`image ${src} on ${page.path}: site-static${src} does not exist`);
-        return { src: upFrom(page) + src.slice(1), ...(/\.png$/i.test(src) ? pngSize(file) : {}) };
-      };
+      const imageFor = imageResolver(page);
       const body = renderMarkdown(page.body, link, page.description ? imageFor : noImages); // only pages/ files have a description
       const ordered = pages.filter((p) => p.kind !== "home" && group(p) === group(page));
       const i = ordered.indexOf(page);
@@ -855,9 +953,14 @@ export function buildSite(
       }
       head = (page.path === "docs/faq/" ? jsonLd(faqLd(page.body)) : jsonLd(article)) + jsonLd(breadcrumbs);
     }
-    files.set(`${page.path}index.html`, layout(page, content, head, image ? { image: image.url, imageAlt: image.alt } : {}));
+    files.set(`${page.path}index.html`, layout(page, content, head, { blog, ...(image ? { image: image.url, imageAlt: image.alt } : {}) }));
+    if (page.kind === "blog") rendered.set(page.path, renderMarkdown(page.body, absoluteLinker(page, anchors, paths), absoluteImages(page)));
   }
-  const urls = [...pages.map((p) => `${SITE}/${p.path}`), `${SITE}/sample/`];
+  if (blog) {
+    files.set("blog/index.html", blogIndex(posts));
+    files.set("blog/feed.xml", rssFeed(posts, rendered));
+  }
+  const urls = [...pages.map((p) => `${SITE}/${p.path}`), ...(blog ? [`${SITE}/blog/`] : []), `${SITE}/sample/`];
   files.set("sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u}</loc></url>`).join("\n")}\n</urlset>\n`);
   files.set("robots.txt", `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
   files.set("favicon.svg", FAVICON_SVG);
@@ -878,7 +981,7 @@ export function buildSite(
       notFound,
       `<main class="doc">\n<h1>Page not found</h1>\n<p>There is no page at this address. It may have moved: the documentation was reorganized when Regrade became BehavTest.</p>\n<ul><li><a href="./">Documentation home</a></li><li><a href="docs/quickstart/">Quickstart</a></li><li><a href="integrations/">Integrations</a></li><li><a href="docs/troubleshooting/">Troubleshooting</a></li></ul>\n<h2>Learn</h2>\n<ul>${learnLinks}</ul>\n</main>`,
       "",
-      { notFound: true },
+      { notFound: true, blog },
     ),
   );
   return files;

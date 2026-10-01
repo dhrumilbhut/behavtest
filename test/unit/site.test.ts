@@ -205,7 +205,7 @@ describe("documentation site: blog posts", () => {
     expect(html).toContain('<a href="../../llm-testing/">LLM testing</a>'); // depth-aware, validated link
     const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)![1]!);
     expect(ld).toMatchObject({ "@type": "BlogPosting", datePublished: "2026-09-25", keywords: "statistics, ci", image: "https://dhrumilbhut.github.io/behavtest/og/blog/newer-post.png" });
-    expect(html).toContain('<a href="../../#blog">Blog</a>');
+    expect(html).toContain('<p class="crumbs"><a href="../../">BehavTest</a> › <a href="../../blog/">Blog</a></p>');
   });
 
   it("lists posts newest first in a Blog section on the landing page, and pages through them in that order", () => {
@@ -220,13 +220,71 @@ describe("documentation site: blog posts", () => {
   it("adds posts to sitemap.xml and to a Blog section of llms.txt, before Optional", () => {
     for (const slug of ["newer-post", "older-post"]) expect(files.get("sitemap.xml")).toContain(`<loc>https://dhrumilbhut.github.io/behavtest/blog/${slug}/</loc>`);
     const llms = files.get("llms.txt")!;
-    expect(llms).toMatch(/## Docs[\s\S]*## Blog\n\n- \[Post newer-post\]\(https:\/\/dhrumilbhut\.github\.io\/behavtest\/blog\/newer-post\/\) \(2026-09-25\): [^\n]+\n- \[Post older-post\][^\n]+\n\n## Optional/);
+    expect(llms).toMatch(/## Docs[\s\S]*## Blog\n\nAll posts: [^\n]+\n\n- \[Post newer-post\]\(https:\/\/dhrumilbhut\.github\.io\/behavtest\/blog\/newer-post\/\) \(2026-09-25\): [^\n]+\n- \[Post older-post\][^\n]+\n\n## Optional/);
   });
 
-  it("has no Blog section and leaves llms.txt as written when there are no posts", () => {
+  it("has no Blog section, menu link, index page or feed, and leaves llms.txt as written, when there are no posts", () => {
     const none = buildWith({}, []);
     expect(none.get("index.html")).not.toContain('id="blog"');
+    expect(none.get("llm-testing/index.html")).not.toContain("blog/");
+    expect(none.has("blog/index.html")).toBe(false);
+    expect(none.has("blog/feed.xml")).toBe(false);
     expect(none.get("llms.txt")).not.toContain("## Blog");
+  });
+
+  it("links the blog from the menu and footer of every page, and advertises the feed", () => {
+    const page = files.get("llm-testing/index.html")!;
+    expect(page).toContain('<a class="opt" href="../blog/">Blog</a>');
+    expect(page).toContain('<link rel="alternate" type="application/rss+xml" title="BehavTest blog" href="../blog/feed.xml">');
+    expect(files.get("index.html")).toContain('<a class="opt" href="blog/">Blog</a>');
+    expect(files.get("404.html")).toContain('<a class="opt" href="./blog/">Blog</a>');
+  });
+
+  it("has a /blog/ page listing every post, newest first, with its date, description and topics", () => {
+    const index = files.get("blog/index.html")!;
+    expect(index).toContain("<title>Blog | BehavTest</title>");
+    expect(index).toContain('<link rel="canonical" href="https://dhrumilbhut.github.io/behavtest/blog/">');
+    expect(index.indexOf('href="../blog/newer-post/"')).toBeGreaterThan(-1);
+    expect(index.indexOf('href="../blog/newer-post/"')).toBeLessThan(index.indexOf('href="../blog/older-post/"'));
+    expect(index).toContain('<p class="byline"><time datetime="2026-09-25">25 September 2026</time> · statistics, ci</p>');
+    expect(index).toContain("<p>A test post called newer-post, long enough to be a search snippet.</p>");
+    const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(index)![1]!);
+    expect(ld).toMatchObject({ "@type": "Blog", url: "https://dhrumilbhut.github.io/behavtest/blog/" });
+    expect(ld.blogPost.map((b: { url: string }) => b.url)).toEqual([
+      "https://dhrumilbhut.github.io/behavtest/blog/newer-post/",
+      "https://dhrumilbhut.github.io/behavtest/blog/older-post/",
+    ]);
+    expect(files.get("sitemap.xml")).toContain("<loc>https://dhrumilbhut.github.io/behavtest/blog/</loc>");
+    expect(files.get("llms.txt")).toContain("All posts: https://dhrumilbhut.github.io/behavtest/blog/ (RSS: https://dhrumilbhut.github.io/behavtest/blog/feed.xml)");
+  });
+
+  it("shows only the three newest posts on the landing page, with a link to all of them", () => {
+    const four = buildWith(
+      { a: post("a", "2026-09-01"), b: post("b", "2026-09-02"), c: post("c", "2026-09-03"), d: post("d", "2026-09-04") },
+      ["a", "b", "c", "d"],
+    );
+    const section = four.get("index.html")!.split('id="blog"')[1]!.split("</section>")[0]!;
+    expect([...section.matchAll(/<li><a href="blog\/(\w)\/"/g)].map((m) => m[1])).toEqual(["d", "c", "b"]);
+    expect(section).toContain('<a href="blog/">All posts</a> · <a href="blog/feed.xml">RSS feed</a>');
+    expect(four.get("blog/index.html")).toContain('href="../blog/a/"'); // the index still lists all four
+  });
+
+  it("publishes an RSS 2.0 feed with each post's full content, absolute links and images, newest first", () => {
+    const withImage = post("shots", "2026-09-30", "").replace("See [LLM testing](/llm-testing/).", "See [LLM testing](/llm-testing/) & more.\n\n![A screenshot](/blog/shots/compare.png)").replace("title: Post shots", "title: Posts & <shots>");
+    const feed = buildWith({ shots: withImage, "older-post": post("older-post", "2026-09-10") }, ["shots", "older-post"], ["/blog/shots/compare.png"]).get("blog/feed.xml")!;
+    expect(feed).toMatch(/^<\?xml version="1\.0" encoding="UTF-8"\?>\n<rss version="2\.0"/);
+    expect(feed).toContain('<atom:link href="https://dhrumilbhut.github.io/behavtest/blog/feed.xml" rel="self" type="application/rss+xml"/>');
+    expect(feed).toContain("<title>Posts &amp; &lt;shots&gt;</title>");
+    expect(feed).toContain("<lastBuildDate>Wed, 30 Sep 2026 00:00:00 GMT</lastBuildDate>");
+    expect(feed.indexOf("<link>https://dhrumilbhut.github.io/behavtest/blog/shots/</link>")).toBeLessThan(feed.indexOf("<link>https://dhrumilbhut.github.io/behavtest/blog/older-post/</link>"));
+    expect(feed).toContain("<pubDate>Thu, 10 Sep 2026 00:00:00 GMT</pubDate>");
+    expect(feed).toContain('<guid isPermaLink="true">https://dhrumilbhut.github.io/behavtest/blog/shots/</guid>');
+    expect(feed).toContain("<category>statistics</category>");
+    const content = /<content:encoded><!\[CDATA\[([\s\S]*?)\]\]><\/content:encoded>/.exec(feed)![1]!;
+    expect(content).toContain('<a href="https://dhrumilbhut.github.io/behavtest/llm-testing/">LLM testing</a>');
+    expect(content).toContain('<img src="https://dhrumilbhut.github.io/behavtest/blog/shots/compare.png"');
+    expect(content).not.toContain("<h1"); // the item's title is the heading
+    expect(content).not.toMatch(/(href|src)="\.\.\//);
   });
 
   it("refuses posts with a missing or impossible date, no topics, a path that isn't the file name, or no social card", () => {
