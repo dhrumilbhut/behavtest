@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // The documentation site is generated from README.md by scripts/site.mts. These checks are what a
@@ -34,9 +35,12 @@ describe("documentation site", () => {
     expect(paths.filter((p) => p.startsWith("guides/"))).toHaveLength(guides);
   });
 
-  it("every internal link resolves to a generated page, and every #anchor to an id on that page", () => {
+  it("every internal link resolves to a generated page, every #anchor to an id on that page, and every image to a file", () => {
     const broken: string[] = [];
     for (const page of pages) {
+      for (const [, src] of read(page).matchAll(/<img src="([^"]+)"/g)) {
+        if (!existsSync(resolve(dirname(page), src!))) broken.push(`${rel(page)}: image ${src} (no file)`);
+      }
       for (const [, href] of read(page).matchAll(/href="([^"]+)"/g)) {
         if (/^(https?:|mailto:|data:)/.test(href!)) continue; // external, or the inline favicon
         const [path, anchor] = href!.split("#") as [string, string | undefined];
@@ -145,5 +149,111 @@ describe("documentation site", () => {
     const html = read(join(out, "docs", "ci-baselines", "index.html"));
     expect(html).toContain("&quot;$GITHUB_STEP_SUMMARY&quot;");
     expect(html).not.toMatch(/<pre><code[^>]*>[^<]*<(?!\/code)/);
+  });
+});
+
+// Blog posts (pages/blog/<slug>.md): built from fixtures, since the repository may have none yet.
+describe("documentation site: blog posts", () => {
+  type SiteModule = {
+    buildSite: (readme: string, content: unknown[], opts: { staticDir: string; llms: string }) => Map<string, string>;
+    loadContentPages: (dir: string) => { kind: string; path: string }[];
+  };
+  let site: SiteModule;
+  let files: Map<string, string>;
+  const post = (slug: string, date: string, extra = "") =>
+    `---\npath: blog/${slug}/\ntitle: Post ${slug}\ndescription: A test post called ${slug}, long enough to be a search snippet.\nkind: blog\ndate: ${date}\ntopics: [statistics, ci]\n${extra}---\n# Post ${slug}\n\nSee [LLM testing](/llm-testing/).\n`;
+  const write = (base: string, rel: string, text: string | Buffer) => {
+    mkdirSync(dirname(join(base, rel)), { recursive: true });
+    writeFileSync(join(base, rel), text);
+  };
+  /** The first 24 bytes of a PNG: enough for the generator to read its size. */
+  const png = (w: number, h: number) => {
+    const b = Buffer.alloc(24);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]).copy(b, 0);
+    b.write("IHDR", 12, "ascii");
+    b.writeUInt32BE(w, 16);
+    b.writeUInt32BE(h, 20);
+    return b;
+  };
+  const buildWith = (posts: Record<string, string>, cards: string[], images: string[] = []) => {
+    const d = mkdtempSync(join(tmpdir(), "behavtest-blog-"));
+    write(d, "pages/learn/llm-testing.md", "---\npath: llm-testing/\ntitle: LLM Testing\ndescription: A learning page for the fixture, long enough to be a search snippet.\nkind: learn\n---\n# LLM testing\n\nText.\n");
+    for (const [slug, text] of Object.entries(posts)) write(d, `pages/blog/${slug}.md`, text);
+    for (const slug of cards) write(d, `static/og/blog/${slug}.png`, Buffer.from("png"));
+    for (const image of images) write(d, `static${image}`, png(640, 360));
+    try {
+      return site.buildSite(read(join(root, "README.md")), site.loadContentPages(join(d, "pages")), {
+        staticDir: join(d, "static"),
+        llms: "# BehavTest\n\n> Summary.\n\n## Docs\n\n- a\n\n## Optional\n\n- b\n",
+      });
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  };
+
+  beforeAll(async () => {
+    site = (await import(pathToFileURL(join(root, "scripts", "site.mts")).href)) as SiteModule;
+    files = buildWith({ "older-post": post("older-post", "2026-09-10"), "newer-post": post("newer-post", "2026-09-25") }, ["older-post", "newer-post"]);
+  });
+  it("renders each post at its own URL with a date, topics, BlogPosting data and its own social card", () => {
+    const html = files.get("blog/newer-post/index.html")!;
+    expect(html).toContain('<link rel="canonical" href="https://dhrumilbhut.github.io/behavtest/blog/newer-post/">');
+    expect(html).toContain("<title>Post newer-post | BehavTest</title>");
+    expect(html).toContain('<p class="byline"><time datetime="2026-09-25">25 September 2026</time> · Dhrumil Bhut · statistics, ci</p>');
+    expect(html).toContain('<meta property="og:image" content="https://dhrumilbhut.github.io/behavtest/og/blog/newer-post.png">');
+    expect(html).toContain('<meta name="twitter:image" content="https://dhrumilbhut.github.io/behavtest/og/blog/newer-post.png">');
+    expect(html).toContain('<a href="../../llm-testing/">LLM testing</a>'); // depth-aware, validated link
+    const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)![1]!);
+    expect(ld).toMatchObject({ "@type": "BlogPosting", datePublished: "2026-09-25", keywords: "statistics, ci", image: "https://dhrumilbhut.github.io/behavtest/og/blog/newer-post.png" });
+    expect(html).toContain('<a href="../../#blog">Blog</a>');
+  });
+
+  it("lists posts newest first in a Blog section on the landing page, and pages through them in that order", () => {
+    const home = files.get("index.html")!;
+    const section = home.split('id="blog"')[1]!.split("</section>")[0]!;
+    expect(section.indexOf("blog/newer-post/")).toBeGreaterThan(-1);
+    expect(section.indexOf("blog/newer-post/")).toBeLessThan(section.indexOf("blog/older-post/"));
+    expect(section).toContain('<time datetime="2026-09-10">10 September 2026</time>');
+    expect(files.get("blog/newer-post/index.html")).toContain('<a class="next" href="../../blog/older-post/">');
+  });
+
+  it("adds posts to sitemap.xml and to a Blog section of llms.txt, before Optional", () => {
+    for (const slug of ["newer-post", "older-post"]) expect(files.get("sitemap.xml")).toContain(`<loc>https://dhrumilbhut.github.io/behavtest/blog/${slug}/</loc>`);
+    const llms = files.get("llms.txt")!;
+    expect(llms).toMatch(/## Docs[\s\S]*## Blog\n\n- \[Post newer-post\]\(https:\/\/dhrumilbhut\.github\.io\/behavtest\/blog\/newer-post\/\) \(2026-09-25\): [^\n]+\n- \[Post older-post\][^\n]+\n\n## Optional/);
+  });
+
+  it("has no Blog section and leaves llms.txt as written when there are no posts", () => {
+    const none = buildWith({}, []);
+    expect(none.get("index.html")).not.toContain('id="blog"');
+    expect(none.get("llms.txt")).not.toContain("## Blog");
+  });
+
+  it("refuses posts with a missing or impossible date, no topics, a path that isn't the file name, or no social card", () => {
+    expect(() => buildWith({ p: post("p", "2026-09-31") }, ["p"])).toThrow(/needs "date: YYYY-MM-DD"/);
+    expect(() => buildWith({ p: post("p", "30-09-2026") }, ["p"])).toThrow(/needs "date: YYYY-MM-DD"/);
+    expect(() => buildWith({ p: post("p", "2026-09-30").replace("topics: [statistics, ci]\n", "") }, ["p"])).toThrow(/needs "topics/);
+    expect(() => buildWith({ p: post("q", "2026-09-30") }, ["p", "q"])).toThrow(/path must be "blog\/p\/"/);
+    expect(() => buildWith({ p: post("p", "2026-09-30") }, [])).toThrow(/has no social card: run node scripts\/og-image\.mts p/);
+    expect(() => buildWith({ p: post("p", "2026-09-30").replace(/description: .*/, `description: ${"x".repeat(161)}`) }, ["p"])).toThrow(/max 160/);
+  });
+
+  it("renders an image line as a figure with its caption, a depth-aware src and the PNG's size", () => {
+    const withImage = post("shots", "2026-09-30").replace("See [LLM testing](/llm-testing/).", "![The compare view, **demo data**](/blog/shots/compare.png)");
+    const html = buildWith({ shots: withImage }, ["shots"], ["/blog/shots/compare.png"]).get("blog/shots/index.html")!;
+    expect(html).toContain('<figure><img src="../../blog/shots/compare.png" alt="The compare view, **demo data**" width="640" height="360" loading="lazy" decoding="async"><figcaption>The compare view, <strong>demo data</strong></figcaption></figure>');
+  });
+
+  it("refuses an image that is missing, outside /blog/, or has no caption", () => {
+    const withImage = (line: string) => post("shots", "2026-09-30").replace("See [LLM testing](/llm-testing/).", line);
+    expect(() => buildWith({ shots: withImage("![Shot](/blog/shots/missing.png)") }, ["shots"])).toThrow(/site-static\/blog\/shots\/missing\.png does not exist/);
+    expect(() => buildWith({ shots: withImage("![Shot](./assets/shot.png)") }, ["shots"])).toThrow(/write it as \/blog\/<slug>\/<file>\.png/);
+    expect(() => buildWith({ shots: withImage("![](/blog/shots/compare.png)") }, ["shots"], ["/blog/shots/compare.png"])).toThrow(/write a caption/);
+  });
+
+  it("every post in the repository has its social card", () => {
+    const blogDir = join(root, "pages", "blog");
+    const slugs = existsSync(blogDir) ? readdirSync(blogDir).filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3)) : [];
+    for (const slug of slugs) expect(existsSync(join(root, "site-static", "og", "blog", `${slug}.png`)), slug).toBe(true);
   });
 });

@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Template for a blog post's social card (1200x630). scripts/og-image.mts fills in the title,
+     date and topics placeholders and renders it to site-static/og/blog/<slug>.png with a headless
+     Edge or Chrome, the same way site-static/og-image.html became og-image.png. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body { background: #0b0d11; color: #eceef2; font: 16px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; padding: 64px 72px; display: flex; flex-direction: column; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 18px; font-weight: 700; font-size: 34px; letter-spacing: -.01em; }
+  .brand svg { width: 48px; height: 48px; }
+  .brand span { color: #8a919d; font-weight: 500; }
+  h1 { font-size: {{size}}px; line-height: 1.12; letter-spacing: -.025em; font-weight: 750; max-width: 1040px; }
+  .foot { display: flex; justify-content: space-between; align-items: center; color: #8a919d; font-size: 24px; }
+  .topics { display: flex; gap: 10px; }
+  .topics b { font-weight: 500; color: #b3b9c4; border: 1px solid #2e3440; border-radius: 999px; padding: 4px 16px; font-size: 20px; }
+  .accent { height: 6px; width: 120px; background: #6ea8fe; border-radius: 3px; }
+</style>
+</head>
+<body>
+  <div class="brand"><svg viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" rx="7" fill="#6ea8fe"/><path d="M6 9.5l4.5 5 3-3 6.5 6.5M15.5 18h4.5v-4.5" fill="none" stroke="#0b0d11" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>BehavTest <span>· blog</span></div>
+  <div><div class="accent"></div><h1 style="margin-top:28px">{{title}}</h1></div>
+  <div class="foot"><span>{{date}}</span><span class="topics">{{topics}}</span></div>
+</body>
+</html>

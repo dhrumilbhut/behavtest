@@ -2,22 +2,25 @@
 // Builds the documentation website from README.md, so the site and the README can never disagree:
 // a landing page, one page per how-to guide and per reference section, the FAQ with FAQPage
 // structured data, sitemap.xml, robots.txt, llms.txt and llms-full.txt (llmstxt.org).
-// Pages that are not reference material (learning guides, integrations, comparisons) are Markdown
-// files in pages/, each starting with a front-matter block; they use the same renderer and layout.
+// Pages that are not reference material (learning guides, integrations, comparisons, blog posts) are
+// Markdown files in pages/, each starting with a front-matter block; they use the same renderer and
+// layout. Blog posts (pages/blog/<slug>.md) also need a date, topics and their own social card in
+// site-static/og/blog/<slug>.png (made by scripts/og-image.mts). Images in pages are written as a
+// line of their own, ![caption](/blog/<slug>/<file>.png), and live in site-static/blog/<slug>/.
 // The sample report is written separately into <out>/sample by scripts/sample-report.mjs.
 //
 //   node scripts/site.mts [--out site]
 //
 // No dependencies: README.md uses a small subset of Markdown, rendered here.
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SITE = "https://dhrumilbhut.github.io/behavtest";
 const REPO = "https://github.com/dhrumilbhut/behavtest";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out") + 1]! : join(root, "site");
-const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version: string };
+const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version: string; author: string };
 
 // ---- Markdown subset ------------------------------------------------------------------------
 
@@ -28,6 +31,19 @@ export const slugify = (heading: string) =>
   heading.replace(/`/g, "").trim().toLowerCase().replace(/[^\p{L}\p{N} _-]/gu, "").replace(/ /g, "-");
 
 type LinkMapper = (href: string) => string;
+/** Resolves an image path written in Markdown to the URL to use and, for PNGs, its size. */
+type ImageMapper = (src: string) => { src: string; width?: number; height?: number };
+
+const noImages: ImageMapper = (src) => {
+  throw new Error(`image ${src}: images are only supported in pages/ (README sections can't hold them)`);
+};
+
+/** Width and height from a PNG's IHDR chunk. */
+export function pngSize(file: string): { width: number; height: number } {
+  const b = readFileSync(file);
+  if (b.length < 24 || b.toString("ascii", 1, 4) !== "PNG") throw new Error(`${file} is not a PNG`);
+  return { width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
+}
 
 function emphasis(text: string): string {
   return esc(text)
@@ -53,7 +69,7 @@ function inline(text: string, link: LinkMapper): string {
 const cells = (row: string) => row.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
 
 /** Render Markdown to HTML. Headings get GitHub-style ids; `link` rewrites every href. */
-export function renderMarkdown(md: string, link: LinkMapper): string {
+export function renderMarkdown(md: string, link: LinkMapper, image: ImageMapper = noImages): string {
   const lines = md.split("\n");
   const html: string[] = [];
   let para: string[] = [];
@@ -69,6 +85,16 @@ export function renderMarkdown(md: string, link: LinkMapper): string {
       const code: string[] = [];
       for (i++; i < lines.length && !lines[i]!.startsWith("```"); i++) code.push(lines[i]!);
       html.push(`<pre><code${fence[1] ? ` class="language-${fence[1]}"` : ""}>${esc(code.join("\n"))}</code></pre>`);
+      continue;
+    }
+    const figure = /^!\[([^\]]*)\]\(([^)\s]+)\)\s*$/.exec(line);
+    if (figure) {
+      flush();
+      const alt = figure[1]!.trim();
+      if (!alt) throw new Error(`image ${figure[2]}: write a caption between the brackets (it is the alt text)`);
+      const img = image(figure[2]!);
+      const size = img.width ? ` width="${img.width}" height="${img.height}"` : "";
+      html.push(`<figure><img src="${esc(img.src)}" alt="${esc(alt)}"${size} loading="lazy" decoding="async"><figcaption>${inline(alt, link)}</figcaption></figure>`);
       continue;
     }
     const heading = /^(#{1,6}) (.+)$/.exec(line);
@@ -132,7 +158,7 @@ function describe(md: string, title: string): string {
 
 // ---- Split the README into pages ----------------------------------------------------------------
 
-type Kind = "home" | "guide" | "doc" | "learn" | "integration" | "comparison";
+type Kind = "home" | "guide" | "doc" | "learn" | "integration" | "comparison" | "blog";
 
 interface Page {
   path: string; // "" for the landing page, else e.g. "docs/x/", "guides/x/", "llm-testing/", "integrations/x/"
@@ -143,7 +169,16 @@ interface Page {
   description?: string; // pages/ only: the meta description (README pages derive theirs from the text)
   label?: string; // pages/ only: a short name for link tiles and the pager (default: the title)
   order?: number; // pages/ only: position within its kind
+  date?: string; // blog posts only: publication date, YYYY-MM-DD
+  topics?: string[]; // blog posts only: `topics: a, b` or `topics: [a, b]`
 }
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/** "2026-09-30" -> "30 September 2026" (no locale dependence). */
+const longDate = (d: string) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)}`;
+
+/** A real calendar date written as YYYY-MM-DD. */
+const isIsoDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
 
 /** Pages from pages/*.md (recursively). Each starts with a front-matter block of `key: value` lines. */
 export function loadContentPages(dir: string): Page[] {
@@ -156,7 +191,7 @@ export function loadContentPages(dir: string): Page[] {
       else if (name.endsWith(".md")) files.push(f);
     }
   })(dir);
-  const kinds = new Set<Kind>(["learn", "integration", "comparison", "doc"]);
+  const kinds = new Set<Kind>(["learn", "integration", "comparison", "doc", "blog"]);
   return files.map((file) => {
     const text = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
     const m = /^---\n([\s\S]*?)\n---\n/.exec(text);
@@ -168,11 +203,24 @@ export function loadContentPages(dir: string): Page[] {
     for (const key of ["path", "title", "description", "kind"]) if (!meta[key]) throw new Error(`${file}: front matter needs "${key}"`);
     if (!heading) throw new Error(`${file}: the page needs one "# " heading`);
     if ((prose.match(/^# /gm) ?? []).length !== 1) throw new Error(`${file}: exactly one "# " heading per page`);
-    if (!kinds.has(meta.kind as Kind)) throw new Error(`${file}: kind must be learn, integration, comparison or doc`);
+    if (!kinds.has(meta.kind as Kind)) throw new Error(`${file}: kind must be learn, integration, comparison, doc or blog`);
     if (!/^[a-z0-9-]+(\/[a-z0-9-]+)*\/$/.test(meta.path!)) throw new Error(`${file}: path must look like "x/" or "x/y/"`);
     if (meta.description!.length > 160) throw new Error(`${file}: description is ${meta.description!.length} characters (max 160)`);
-    return { path: meta.path!, title: meta.title!, heading, body, kind: meta.kind as Kind, description: meta.description, label: meta.label || undefined, order: Number(meta.order ?? 100) };
-  }).sort((a, b) => (a.kind === b.kind ? a.order! - b.order! || a.path.localeCompare(b.path) : 0));
+    const page: Page = { path: meta.path!, title: meta.title!, heading, body, kind: meta.kind as Kind, description: meta.description, label: meta.label || undefined, order: Number(meta.order ?? 100) };
+    if (page.kind === "blog") {
+      const slug = basename(file, ".md");
+      if (page.path !== `blog/${slug}/`) throw new Error(`${file}: a blog post's path must be "blog/${slug}/" (its file name)`);
+      if (!meta.date || !isIsoDate(meta.date)) throw new Error(`${file}: a blog post needs "date: YYYY-MM-DD" (a real date)`);
+      const topics = (meta.topics ?? "").replace(/^\[|\]$/g, "").split(",").map((t) => t.trim()).filter(Boolean);
+      if (topics.length === 0) throw new Error(`${file}: a blog post needs "topics: a, b" (at least one)`);
+      page.date = meta.date;
+      page.topics = topics;
+    }
+    return page;
+  }).sort((a, b) =>
+    a.kind !== b.kind ? 0
+    : a.kind === "blog" ? b.date!.localeCompare(a.date!) || a.path.localeCompare(b.path) // newest first
+    : a.order! - b.order! || a.path.localeCompare(b.path));
 }
 
 /** "../" once per path segment: the way back to the site root from a page. */
@@ -391,6 +439,11 @@ section.block h2 { font-size: clamp(26px, 3.2vw, 34px); line-height: 1.2; letter
 .links a::after { content: "→"; color: var(--muted); transition: transform .15s; }
 .links a:hover { border-color: var(--accent); }
 .links a:hover::after { color: var(--accent); transform: translateX(3px); }
+.links small { color: var(--muted); font-weight: 400; font-size: 13px; white-space: nowrap; margin-left: auto; }
+.byline { color: var(--muted); font-size: 14px; margin: -8px 0 28px; }
+.doc figure { margin: 28px 0; }
+.doc figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
+.doc figcaption { color: var(--muted); font-size: 13.5px; line-height: 1.5; margin-top: 10px; }
 .ref { columns: 3 220px; column-gap: 32px; list-style: none; padding: 0; margin: 0; }
 .ref li { break-inside: avoid; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .ref a { color: var(--ink); text-decoration: none; font-size: 15px; }
@@ -493,7 +546,7 @@ const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 26"
 /** Social preview card (1200x630), copied from site-static/ by the CLI below. */
 const OG_IMAGE = `${SITE}/og-image.png`;
 
-function layout(page: Page, content: string, extraHead: string, opts: { notFound?: boolean } = {}): string {
+function layout(page: Page, content: string, extraHead: string, opts: { notFound?: boolean; image?: string; imageAlt?: string } = {}): string {
   // the 404 page is served at any depth: its links start from <base>, the site root
   const up = opts.notFound ? "./" : upFrom(page);
   const home = up || "./";
@@ -517,14 +570,14 @@ ${opts.notFound ? `<meta name="robots" content="noindex">\n<base href="${SITE}/"
 <meta property="og:site_name" content="BehavTest">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
-${opts.notFound ? "" : `<meta property="og:url" content="${url}">\n`}<meta property="og:image" content="${OG_IMAGE}">
+${opts.notFound ? "" : `<meta property="og:url" content="${url}">\n`}<meta property="og:image" content="${opts.image ?? OG_IMAGE}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="BehavTest: behavioral regression testing for AI applications">
+<meta property="og:image:alt" content="${esc(opts.imageAlt ?? "BehavTest: behavioral regression testing for AI applications")}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
-<meta name="twitter:image" content="${OG_IMAGE}">
+<meta name="twitter:image" content="${opts.image ?? OG_IMAGE}">
 <link rel="icon" type="image/svg+xml" href="${up}favicon.svg">
 <link rel="alternate" type="text/plain" title="llms.txt" href="${up}llms.txt">
 <script>${THEME_EARLY}</script>
@@ -571,6 +624,7 @@ function trail(page: Page): [string, string][] {
     learn: ["Learn", "#learn"],
     integration: ["Integrations", "integrations/"],
     comparison: ["Comparisons", "comparisons/"],
+    blog: ["Blog", "#blog"],
   };
   if (page.kind === "home") return [];
   const s = section[page.kind];
@@ -579,6 +633,10 @@ function trail(page: Page): [string, string][] {
 
 function docPage(page: Page, body: string, pager: string): string {
   const up = upFrom(page);
+  if (page.kind === "blog") {
+    const byline = `<p class="byline"><time datetime="${page.date}">${longDate(page.date!)}</time> · ${esc(pkg.author)} · ${page.topics!.map(esc).join(", ")}</p>`;
+    body = body.replace("</h1>", `</h1>\n${byline}`);
+  }
   const crumbs = `<p class="crumbs">${trail(page).map(([label, path]) => `<a href="${up}${path}">${esc(label)}</a>`).join(" › ")}</p>`;
   return `<main class="doc">\n${crumbs}\n${body}\n${pager}\n</main>`;
 }
@@ -591,7 +649,9 @@ function landing(pages: Page[]): string {
   const learn = pages.filter((p) => p.kind === "learn");
   const integrations = pages.filter((p) => p.kind === "integration" && p.path !== "integrations/");
   const comparisons = pages.filter((p) => p.kind === "comparison" && p.path !== "comparisons/");
-  const linkList = (list: Page[]) => `<ul class="links">${list.map((p) => `<li><a href="${p.path}">${esc(p.label ?? p.title)}</a></li>`).join("")}</ul>`;
+  const posts = pages.filter((p) => p.kind === "blog"); // already newest first
+  const linkList = (list: Page[]) =>
+    `<ul class="links">${list.map((p) => `<li><a href="${p.path}">${esc(p.label ?? p.title)}${p.date ? ` <small><time datetime="${p.date}">${longDate(p.date)}</time></small>` : ""}</a></li>`).join("")}</ul>`;
   const section = (id: string, eyebrow: string, h2: string, sub: string, list: Page[], more = "") =>
     list.length ? `<section class="block" id="${id}"><div class="wrap">\n<p class="eyebrow">${eyebrow}</p>\n<h2>${h2}</h2>\n<p class="sub">${sub}</p>\n${linkList(list)}${more}\n</div></section>\n\n` : "";
   const feature = (icon: string, title: string, text: string, href: string) =>
@@ -673,7 +733,7 @@ behavtest compare \\
 </div>
 </div></section>
 
-${section("learn", "Learn", "Testing AI applications, from first principles", "What regression testing means when outputs are nondeterministic, how it differs from evaluation, and how to do it in practice. Useful whether or not you use BehavTest.", learn)}${section("integrations", "Integrations", "Test the stack you already have", "Step-by-step setups for the providers and frameworks BehavTest works with, each with a working example.", integrations, `<p class="note"><a href="integrations/">All integrations</a></p>`)}${section("comparisons", "Comparisons", "How BehavTest relates to other tools", "Neutral, sourced comparisons with other LLM evaluation and testing tools, and when each approach fits.", comparisons, `<p class="note"><a href="comparisons/">All comparisons</a></p>`)}<section class="block" id="how-to-guides"><div class="wrap">
+${section("learn", "Learn", "Testing AI applications, from first principles", "What regression testing means when outputs are nondeterministic, how it differs from evaluation, and how to do it in practice. Useful whether or not you use BehavTest.", learn)}${section("blog", "Blog", "Notes from building BehavTest", "Articles on behavioral regression testing and on the decisions behind BehavTest, newest first.", posts)}${section("integrations", "Integrations", "Test the stack you already have", "Step-by-step setups for the providers and frameworks BehavTest works with, each with a working example.", integrations, `<p class="note"><a href="integrations/">All integrations</a></p>`)}${section("comparisons", "Comparisons", "How BehavTest relates to other tools", "Neutral, sourced comparisons with other LLM evaluation and testing tools, and when each approach fits.", comparisons, `<p class="note"><a href="comparisons/">All comparisons</a></p>`)}<section class="block" id="how-to-guides"><div class="wrap">
 <p class="eyebrow">How-to guides</p>
 <h2>Start from what you want to do</h2>
 <p class="sub">Short, task-first guides with copy-paste examples.</p>
@@ -695,7 +755,28 @@ ${install("npx behavtest init --ts && npx behavtest run behavtest/suite.mts")}
 </main>`;
 }
 
-export function buildSite(readme: string, content: Page[] = loadContentPages(join(root, "pages"))): Map<string, string> {
+/** llms.txt with a "## Blog" section listing the posts, newest first, before "## Optional" (or at the end). */
+export function llmsWithBlog(llms: string, pages: Page[]): string {
+  const posts = pages.filter((p) => p.kind === "blog");
+  if (posts.length === 0) return llms;
+  const section = `## Blog\n\n${posts.map((p) => `- [${p.title}](${SITE}/${p.path}) (${p.date}): ${p.description}`).join("\n")}\n\n`;
+  const at = llms.indexOf("\n## Optional");
+  return at === -1 ? `${llms.trimEnd()}\n\n${section}` : `${llms.slice(0, at + 1)}${section}${llms.slice(at + 1)}`;
+}
+
+export interface BuildOptions {
+  /** Where site-static/ is: blog posts' social cards are checked for there. */
+  staticDir?: string;
+  /** The hand-written llms.txt to extend with the blog section. */
+  llms?: string;
+}
+
+export function buildSite(
+  readme: string,
+  content: Page[] = loadContentPages(join(root, "pages")),
+  opts: BuildOptions = {},
+): Map<string, string> {
+  const staticDir = opts.staticDir ?? join(root, "site-static");
   const pages = [...splitReadme(readme), ...content];
   const paths = new Set(pages.map((p) => p.path).concat("sample/", "llms.txt"));
   for (const p of content) if (pages.filter((q) => q.path === p.path).length > 1) throw new Error(`two pages use the path ${p.path}`);
@@ -708,6 +789,7 @@ export function buildSite(readme: string, content: Page[] = loadContentPages(joi
     let content: string;
     let head = "";
     let pager = "";
+    let image: { url: string; alt: string } | undefined;
     if (page.kind === "home") {
       content = landing(pages);
       head = jsonLd({
@@ -726,7 +808,16 @@ export function buildSite(readme: string, content: Page[] = loadContentPages(joi
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       });
     } else {
-      const body = renderMarkdown(page.body, link);
+      const imageFor: ImageMapper = (src) => {
+        // root-relative and under /blog/, like links: "/blog/<slug>/shot.png" lives in site-static/blog/<slug>/
+        if (!/^\/blog\/[a-z0-9-]+\/[\w.-]+\.(png|jpe?g|webp|gif)$/i.test(src)) {
+          throw new Error(`image ${src} on ${page.path}: write it as /blog/<slug>/<file>.png (a file in site-static/blog/<slug>/)`);
+        }
+        const file = join(staticDir, src.slice(1));
+        if (!existsSync(file)) throw new Error(`image ${src} on ${page.path}: site-static${src} does not exist`);
+        return { src: upFrom(page) + src.slice(1), ...(/\.png$/i.test(src) ? pngSize(file) : {}) };
+      };
+      const body = renderMarkdown(page.body, link, page.description ? imageFor : noImages); // only pages/ files have a description
       const ordered = pages.filter((p) => p.kind !== "home" && group(p) === group(page));
       const i = ordered.indexOf(page);
       const prev = ordered[i - 1];
@@ -740,16 +831,37 @@ export function buildSite(readme: string, content: Page[] = loadContentPages(joi
         "@type": "BreadcrumbList",
         itemListElement: crumbs.map(([name, p], i) => ({ "@type": "ListItem", position: i + 1, name, item: `${SITE}/${p}` })),
       };
-      head = (page.path === "docs/faq/"
-        ? jsonLd(faqLd(page.body))
-        : jsonLd({ "@context": "https://schema.org", "@type": "TechArticle", headline: page.title, description: page.description, url: `${SITE}/${page.path}`, about: "BehavTest", isPartOf: `${SITE}/` })) + jsonLd(breadcrumbs);
+      let article: object = { "@context": "https://schema.org", "@type": "TechArticle", headline: page.title, description: page.description, url: `${SITE}/${page.path}`, about: "BehavTest", isPartOf: `${SITE}/` };
+      if (page.kind === "blog") {
+        const card = `og/blog/${basename(page.path)}.png`;
+        if (!existsSync(join(staticDir, card))) {
+          throw new Error(`blog post ${page.path} has no social card: run node scripts/og-image.mts ${basename(page.path)} (expects site-static/${card})`);
+        }
+        image = { url: `${SITE}/${card}`, alt: page.title };
+        article = {
+          "@context": "https://schema.org",
+          "@type": "BlogPosting",
+          headline: page.title,
+          description: page.description,
+          datePublished: page.date,
+          author: { "@type": "Person", name: pkg.author },
+          image: image.url,
+          keywords: page.topics!.join(", "),
+          url: `${SITE}/${page.path}`,
+          mainEntityOfPage: `${SITE}/${page.path}`,
+          isPartOf: `${SITE}/`,
+          about: "BehavTest",
+        };
+      }
+      head = (page.path === "docs/faq/" ? jsonLd(faqLd(page.body)) : jsonLd(article)) + jsonLd(breadcrumbs);
     }
-    files.set(`${page.path}index.html`, layout(page, content, head));
+    files.set(`${page.path}index.html`, layout(page, content, head, image ? { image: image.url, imageAlt: image.alt } : {}));
   }
   const urls = [...pages.map((p) => `${SITE}/${p.path}`), `${SITE}/sample/`];
   files.set("sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u}</loc></url>`).join("\n")}\n</urlset>\n`);
   files.set("robots.txt", `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
   files.set("favicon.svg", FAVICON_SVG);
+  files.set("llms.txt", llmsWithBlog(opts.llms ?? readFileSync(join(root, "llms.txt"), "utf8"), pages));
   // GitHub Pages serves 404.html for any missing path, at any depth: <base> makes its links absolute
   const notFound: Page = {
     path: "",
@@ -780,8 +892,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     mkdirSync(dirname(join(outDir, path)), { recursive: true });
     writeFileSync(join(outDir, path), text);
   }
-  copyFileSync(join(root, "llms.txt"), join(outDir, "llms.txt"));
   copyFileSync(join(root, "site-static", "og-image.png"), join(outDir, "og-image.png"));
+  if (existsSync(join(root, "site-static", "og"))) cpSync(join(root, "site-static", "og"), join(outDir, "og"), { recursive: true });
+  if (existsSync(join(root, "site-static", "blog"))) cpSync(join(root, "site-static", "blog"), join(outDir, "blog"), { recursive: true });
   copyFileSync(join(root, "README.md"), join(outDir, "llms-full.txt"));
-  process.stdout.write(`site: ${files.size} files + llms.txt, llms-full.txt → ${outDir}\n`);
+  process.stdout.write(`site: ${files.size} files + llms-full.txt → ${outDir}\n`);
 }
